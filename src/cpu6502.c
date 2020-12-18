@@ -9,32 +9,6 @@
 uint8_t cpu_read (uint16_t address)                { return bus_read(&bus, address);  }
 void    cpu_write(uint16_t address, uint8_t value) { bus_write(&bus, address, value); }
 
-/*
-*=$8000
-	LDX #10 
-	STX $0000
-    LDX #3
-    STX $0001
-    LDY $0000
-    LDA #0
-    CLC
-    loop
-    ADC $0001
-    DEY
-    BNE loop
-    STA $0002
-    NOP
-    NOP
-    NOP
-*/
-
-const uint8_t testProg[28] = {
-    0xA2, 0x0A, 0x8E, 0x0,  0x0,  0xA2, 0x03, 0x8E, 
-    0x01, 0x0,  0xAC, 0x0,  0x0,  0xA9, 0x0,  0x18, 
-    0x6D, 0x01, 0x00, 0x88, 0xD0, 0xFA, 0x8D, 0x02,
-    0x00, 0xEA, 0xEA, 0xEA
-};
-
 const uint16_t
     CPU_RAM_START   = 0,
     PPU_REG_START   = 0x2000,
@@ -122,8 +96,8 @@ inline uint8_t pull8()
     return (cpu_read (BASE_STACK + cpu->r.sp));
 }
 
-static void (*addrtable[256])();
 //static struct Instruction optable[][64];
+static struct Instruction optable[256];
 
 uint8_t penaltyop, penaltyaddr;
 
@@ -248,7 +222,8 @@ void zpy()
 
 static uint16_t getvalue() 
 {
-    if (!(addrtable[cpu->opcode] == impl))
+    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+    if (!(optable[opID].addrmode == impl))
 		cpu->value = cpu_read (cpu->abs_addr);
 
 	return cpu->value;
@@ -256,7 +231,8 @@ static uint16_t getvalue()
 
 static void putvalue(uint16_t saveval) 
 {
-    if (addrtable[cpu->opcode] == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
+    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+    if (optable[opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
         else cpu_write (cpu->abs_addr, (saveval & 0xff));
 }
 
@@ -898,18 +874,11 @@ static const uint8_t ticktable[256] = {
 };
 #endif
 
-struct Instruction
-{		
-    void    (*op)();
-    void    (*addrmode)();
-    uint8_t ticks;
-};
+/* Opcodes are grouped by type, then fetched later via ordering in the table */
 
-//static void (*optable[256])();
-
-static struct Instruction optable[][64] = {
+static struct Instruction optable[256] = {
     /* (Mostly) control instructions */
-    {  /* 0x0              0x4             0x8              0xc  */
+       /* 0x0              0x4             0x8              0xc  */
         { brk, impl,7 }, { nop, zp, 3 }, { php, impl,3 }, { nop, abso,4 }, { bpl, rel, 2 }, { nop, zpx, 4 }, { clc, impl, 2 }, { nop, absx, 4 },
         { jsr, abso,6 }, { bit, zp, 3 }, { plp, impl,4 }, { bit, abso,4 }, { bmi, rel, 2 }, { nop, zpx, 4 }, { sec, impl, 2 }, { nop, absx, 4 },
         { rti, impl,6 }, { nop, zp, 3 }, { pha, impl,3 }, { jmp, abso,3 }, { bvc, rel, 2 }, { nop, zpx, 4 }, { cli, impl, 4 }, { nop, absx, 4 },
@@ -917,10 +886,10 @@ static struct Instruction optable[][64] = {
         { nop, imm, 2 }, { sty, zp, 3 }, { dey, impl,2 }, { sty, abso,4 }, { bcc, rel, 2 }, { sty, zpx, 4 }, { tya, impl, 2 }, { nop, absx, 5 },
         { ldy, imm, 2 }, { ldy, zp, 3 }, { tay, impl,2 }, { ldy, abso,4 }, { bcs, rel, 2 }, { ldy, zpx, 4 }, { clv, impl, 2 }, { ldy, absx, 4 },
         { cpy, imm, 2 }, { cpy, zp, 3 }, { iny, impl,2 }, { cpy, abso,4 }, { bne, rel, 2 }, { nop, zpx, 4 }, { cld, impl, 2 }, { nop, absx, 4 },
-        { cpx, imm, 2 }, { cpx, zp, 3 }, { inx, impl,2 }, { cpx, abso,4 }, { beq, rel, 2 }, { nop, zpx, 4 }, { sed, impl, 2 }, { nop, absx, 4 }
-    },
+        { cpx, imm, 2 }, { cpx, zp, 3 }, { inx, impl,2 }, { cpx, abso,4 }, { beq, rel, 2 }, { nop, zpx, 4 }, { sed, impl, 2 }, { nop, absx, 4 },
+
     /* ALU operations */
-    {  /* 0x1              0x5             0x9              0xd  */
+       /* 0x1              0x5             0x9              0xd  */
         { ora, idx, 6 }, { ora, zp, 3 }, { ora, imm, 2 }, { ora, abso,4 }, { ora, idy, 5 }, { ora, zpx, 4 }, { ora, absy, 4 }, { ora, absx, 4 },
         { and, idx, 6 }, { and, zp, 3 }, { and, imm, 2 }, { and, abso,4 }, { and, idy, 5 }, { and, zpx, 4 }, { and, absy, 4 }, { and, absx, 4 },
         { eor, idx, 6 }, { eor, zp, 3 }, { eor, imm, 2 }, { eor, abso,4 }, { eor, idy, 5 }, { eor, zpx, 4 }, { eor, absy, 4 }, { eor, absx, 4 },
@@ -928,10 +897,10 @@ static struct Instruction optable[][64] = {
         { sta, idx, 6 }, { sta, zp, 3 }, { nop, imm, 2 }, { sta, abso,4 }, { sta, idy, 6 }, { sta, zpx, 4 }, { sta, absy, 5 }, { sta, absx, 5 },
         { lda, idx, 6 }, { lda, zp, 3 }, { lda, imm, 2 }, { lda, abso,4 }, { lda, idy, 5 }, { lda, zpx, 4 }, { lda, absy, 4 }, { lda, absx, 4 },
         { cmp, idx, 6 }, { cmp, zp, 3 }, { cmp, imm, 2 }, { cmp, abso,4 }, { cmp, idy, 5 }, { cmp, zpx, 4 }, { cmp, absy, 4 }, { cmp, absx, 4 },
-        { sbc, idx, 6 }, { sbc, zp, 3 }, { sbc, imm, 2 }, { sbc, abso,4 }, { sbc, idy, 5 }, { sbc, zpx, 4 }, { sbc, absy, 4 }, { sbc, absx, 4 }
-    },
+        { sbc, idx, 6 }, { sbc, zp, 3 }, { sbc, imm, 2 }, { sbc, abso,4 }, { sbc, idy, 5 }, { sbc, zpx, 4 }, { sbc, absy, 4 }, { sbc, absx, 4 },
+
     /* read-mod-write operations */
-    {  /* 0x2              0x6             0xa              0xe  */
+       /* 0x2              0x6             0xa              0xe  */
         { nop, impl,2 }, { asl, zp, 5 }, { asl, acc, 2 }, { asl, abso,6 }, { nop, impl,2 }, { asl, zpx, 6 }, { nop, impl, 2 }, { asl, absx, 7 },
         { nop, impl,2 }, { rol, zp, 5 }, { rol, acc, 2 }, { rol, abso,6 }, { nop, impl,2 }, { rol, zpx, 6 }, { nop, impl, 2 }, { rol, absx, 7 },
         { nop, impl,2 }, { lsr, zp, 5 }, { lsr, acc, 2 }, { lsr, abso,6 }, { nop, impl,2 }, { lsr, zpx, 6 }, { nop, impl, 2 }, { lsr, absx, 7 },
@@ -939,10 +908,10 @@ static struct Instruction optable[][64] = {
         { nop, imm, 2 }, { stx, zp, 3 }, { txa, impl,2 }, { stx, abso,4 }, { nop, impl,2 }, { stx, zpy, 4 }, { txs, impl, 2 }, { nop, absy, 5 },
         { ldx, imm, 2 }, { ldx, zp, 3 }, { tax, impl,2 }, { ldx, abso,4 }, { nop, impl,2 }, { ldx, zpy, 4 }, { tsx, impl, 2 }, { ldx, absy, 4 },
         { nop, imm, 2 }, { dec, zp, 5 }, { dex, impl,2 }, { dec, abso,6 }, { nop, impl,2 }, { dec, zpx, 6 }, { nop, impl, 2 }, { dec, absx, 7 },
-        { nop, imm, 2 }, { inc, zp, 5 }, { nop, impl,2 }, { inc, abso,6 }, { nop, impl,2 }, { inc, zpx, 6 }, { nop, impl, 2 }, { inc, absx, 7 }
-    },
+        { nop, imm, 2 }, { inc, zp, 5 }, { nop, impl,2 }, { inc, abso,6 }, { nop, impl,2 }, { inc, zpx, 6 }, { nop, impl, 2 }, { inc, absx, 7 },
+
     /* Unofficial opcodes */
-    {  /* 0x3              0x7             0xb              0xf  */
+       /* 0x3              0x7             0xb              0xf  */
         { slo, idx, 8 }, { slo, zp, 5 }, { nop, imm, 2 }, { slo, abso,6 }, { slo, idy, 8 }, { slo, zpx, 6 }, { slo, absy, 7 }, { slo, absx, 7 },
         { rla, idx, 8 }, { rla, zp, 5 }, { nop, imm, 2 }, { rla, abso,6 }, { rla, idy, 8 }, { rla, zpx, 6 }, { rla, absy, 7 }, { rla, absx, 7 },
         { sre, idx, 8 }, { sre, zp, 5 }, { nop, imm, 2 }, { sre, abso,6 }, { sre, idy, 8 }, { sre, zpx, 6 }, { sre, absy, 7 }, { sre, absx, 7 },
@@ -951,7 +920,6 @@ static struct Instruction optable[][64] = {
         { lax, idx, 6 }, { lax, zp, 3 }, { lax, imm, 2 }, { lax, abso,4 }, { lax, idy, 5 }, { lax, zpy, 4 }, { nop, absy, 4 }, { lax, absy, 4 },
         { dcp, idx, 8 }, { dcp, zp, 5 }, { nop, imm, 2 }, { dcp, abso,6 }, { dcp, idy, 8 }, { dcp, zpx, 6 }, { dcp, absy, 7 }, { dcp, absx, 7 },
         { isc, idx, 8 }, { isc, zp, 5 }, { sbc, imm, 2 }, { isc, abso,6 }, { isc, idy, 8 }, { isc, zpx, 6 }, { isc, absy, 7 }, { isc, absx, 7 }
-    }
 };
 
 #ifdef populate
@@ -1071,7 +1039,7 @@ void cpu_reset (CPU6502 * const cpu)
     cpu->abs_addr = 0xfffc;
 
 	/* Reset/clear registers */
-    cpu->r.pc = (uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
+    cpu->r.pc = 0xc000;//(uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
     cpu->r.a = 0;
     cpu->r.x = 0;
     cpu->r.y = 0;
@@ -1096,8 +1064,9 @@ void cpu_run_instruction (CPU6502 * const cpu)
 
     /* Fetch OP name */
     cpu->getlastop = 1;
-    (*optable[cpu->opcode & 3][cpu->opcode >> 2].addrmode)();
-    (*optable[cpu->opcode & 3][cpu->opcode >> 2].op)();
+    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+    (*optable[opID].addrmode)();
+    (*optable[opID].op)();
     to_upper(cpu->lastop);
     cpu->getlastop = 0;
 
@@ -1107,10 +1076,10 @@ void cpu_run_instruction (CPU6502 * const cpu)
     /* Exec instruction and get no. of cycles */
     penaltyop = 0;
     penaltyaddr = 0;
-    cpu->clockticks = optable[cpu->opcode & 3][cpu->opcode >> 2].ticks;
+    cpu->clockticks = optable[opID].ticks;
 
-    (*optable[cpu->opcode & 3][cpu->opcode >> 2].addrmode)();
-    (*optable[cpu->opcode & 3][cpu->opcode >> 2].op)();
+    (*optable[opID].addrmode)();
+    (*optable[opID].op)();
 
     if (penaltyop && penaltyaddr) cpu->clockticks++;
 
@@ -1154,7 +1123,8 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 		/* Prefix line with instruction address */
 		/* Read instruction, and get its readable name */
 		uint8_t opcode = bus_read (bus, addr++);
-        (*optable[cpu->opcode & 3][cpu->opcode >> 2].op)();
+        const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+        (*optable[opID].op)();
 
         sprintf(textbuf, "$%04x: %02x ", addr, opcode);
 		strcat(sInst, textbuf);
@@ -1168,71 +1138,71 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 		// routines mimmick the actual fetch routine of the
 		// 6502 in order to get accurate data as part of the
 		// instruction
-		if ((*addrtable[opcode]) == &impl)
+		if ((*optable[opID].addrmode) == &impl)
 		{
             sprintf(textbuf, ".. ..  %s       {IMP}", cpu->lastop);
 		}
-		else if ((*addrtable[opcode]) == &imm)
+		else if ((*optable[opID].addrmode) == &imm)
 		{
 			value = bus_read (bus, addr++);
             sprintf(textbuf, "%02x ..  %s #$%02x  {IMM}", value, cpu->lastop, value);
 		}
-		else if ((*addrtable[opcode]) == &zp)
+		else if ((*optable[opID].addrmode) == &zp)
 		{
 			lo = bus_read(bus, addr++);
 			hi = 0x00;												
 			sprintf(textbuf, "%02x ..  %s $%02x {ZP}", lo, cpu->lastop, lo);
 		}
-		else if ((*addrtable[opcode]) == &zpx)
+		else if ((*optable[opID].addrmode) == &zpx)
 		{
 			lo = bus_read(bus, addr++);
 			hi = 0x00;														
 			sprintf(textbuf, "%02x ..  %s $%02x, X {ZPX}", lo, cpu->lastop, lo);
 		}
-		else if ((*addrtable[opcode]) == &zpy)
+		else if ((*optable[opID].addrmode) == &zpy)
 		{
 			lo = bus_read(bus, addr++);
 			hi = 0x00;														
 			sprintf(textbuf, "%02x ..  %s $%02x, Y {ZPY}", lo, cpu->lastop, lo);
 		}
-		else if ((*addrtable[opcode]) == &idx)
+		else if ((*optable[opID].addrmode) == &idx)
 		{
 			lo = bus_read(bus, addr++);
 			hi = 0x00;								
 			sprintf(textbuf, "%02x ..  %s $%02x, X {IDX}", lo, cpu->lastop, lo);
 		}
-		else if ((*addrtable[opcode]) == &idy)
+		else if ((*optable[opID].addrmode) == &idy)
 		{
 			lo = bus_read(bus, addr++);
 			hi = 0x00;								
 			sprintf(textbuf, "%02x ..  %s $%02x, Y {IDY}", lo, cpu->lastop, lo);
 		}
-		else if ((*addrtable[opcode]) == &abso)
+		else if ((*optable[opID].addrmode) == &abso)
 		{
 			lo = bus_read (bus, addr++);
 			hi = bus_read (bus, addr++);    
 			sprintf(textbuf, "%02x %02x  %s $%04x {ABS}", lo, hi, cpu->lastop, (uint16_t)(hi << 8) | lo);
 		}
-		else if ((*addrtable[opcode]) == &absx)
+		else if ((*optable[opID].addrmode) == &absx)
 		{
 			lo = bus_read (bus, addr++);
 			hi = bus_read (bus, addr++);
 			sprintf(textbuf, "%02x %02x  %s $%04x X {ABX}", lo, hi, cpu->lastop, (uint16_t)(hi << 8) | lo);
 		}
-		else if ((*addrtable[opcode]) == &absy)
+		else if ((*optable[opID].addrmode) == &absy)
 		{
 			lo = bus_read (bus, addr++);
 			hi = bus_read (bus, addr++);
             sprintf(textbuf, "%02x %02x  %s $%04x Y {ABY}", lo, hi, cpu->lastop, (uint16_t)(hi << 8) | lo);
 		}
         
-		else if ((*addrtable[opcode]) == &ind)
+		else if ((*optable[opID].addrmode) == &ind)
 		{
 			lo = bus_read(bus, addr++);
 			hi = bus_read(bus, addr++);
             sprintf(textbuf, "%02x %02x  %s ($%04x)   {IND}", lo, hi, cpu->lastop, (uint16_t)(hi << 8) | lo);
 		}
-		else if ((*addrtable[opcode]) == &rel)
+		else if ((*optable[opID].addrmode) == &rel)
 		{
 			value = bus_read(bus, addr++);
             sprintf(textbuf, "%02x ..  %s $%04x {REL}", value, cpu->lastop, addr + (int8_t)value);

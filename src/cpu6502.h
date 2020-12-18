@@ -23,6 +23,14 @@ typedef struct CPU6502_struct
 }
 CPU6502;
 
+/* Instrction/mode/clock tick group */
+struct Instruction
+{		
+    void    (*op)();
+    void    (*addrmode)();
+    uint8_t ticks;
+};
+
 /* Forward declaration */
 typedef struct Bus_struct Bus;
 
