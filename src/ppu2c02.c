@@ -1,4 +1,5 @@
 #include "ppu2c02.h"
+#include "rom.h"
 #include "gfx/texture.h"
 
 const char* ppu_vs_source =
@@ -37,22 +38,24 @@ void ppu_create_image (PPU2C02 * const ppu)
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     texture_create (&ppu->texture);
-    texture_init (ppu->texture, GL_CLAMP_TO_EDGE, GL_LINEAR);
+    texture_init (ppu->texture, GL_CLAMP_TO_EDGE, GL_NEAREST);
 
-	char* pixels = (char*)calloc(256 * 256, 1);
-	for (int row = 0; row < 256; row++)
+	const uint8_t w = 128, h = 128;
+
+	char* pixels = (char*)calloc(w * h, 1);
+	for (int row = 0; row < h; row++)
 	{
-		for (int col = 0; col < 256; col++)
+		for (int col = 0; col < w; col++)
 		{
-			pixels[row * 256 + col] = random() & 0xff;
+			pixels[row * w + col] = random() & 0xff;
 		}
 	}
 
-    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 256, 256, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, pixels);
     glBindTexture (GL_TEXTURE_2D, 0);
 
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     free(pixels);
 
@@ -142,7 +145,7 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 	}*/
 	if (address >= 0x0000 && address <= 0x1fff)
 	{
-		data = ppu->patternTables[(address & 0x1000) >> 12][address & 0x0fff];
+		data = ppu->patternTable[(address & 0x1000) >> 12][address & 0x0fff];
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
@@ -186,7 +189,7 @@ void ppu_clock (PPU2C02 * const ppu)
 	}
 }
 
-void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight)
+void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight, uint8_t const idx)
 {
 	/* Test draw, use PPU shader */
     glUseProgram(ppu->fbufferShader.program);
@@ -201,20 +204,23 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
 
     /* Set texture */
     glBindTexture(GL_TEXTURE_2D, ppu->texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	/* Generate new random noise */
 	uint16_t w = 256,  h = 256;
-	char* pixels = (char*)calloc(256 * 256, 1);
-	for (int row = 0; row < 256; row++)
+	/*char* pixels = (char*)calloc(128 * 128, 1);
+	for (int row = 0; row < 128; row++)
 	{
-		for (int col = 0; col < 256; col++)
+		for (int col = 0; col < 128; col++)
 		{
-			pixels[row * 256 + col] = random() & 0xff;
+			pixels[row * 128 + col] = random() & 0xff;
 		}
-	}
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, GL_RED, GL_UNSIGNED_BYTE, pixels);
-	free (pixels);
-	int16_t xpos = scrWidth - 512, ypos = 0; 
+	}*/
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 128, 128, GL_RED, GL_UNSIGNED_BYTE, ppu->patternTable[idx]);
+	//free (pixels);
+	int16_t xpos = scrWidth - 512, ypos = 0;
+	if (idx > 0) xpos += 256;
 
 	GLfloat vertices[6][4] = {
 		{ xpos,     ypos + h,   0.0, 0.0 },            
@@ -237,42 +243,9 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
-/*
-void dump_pattern_table(uint8_t i, uint8_t palette) {
-	// This function draw the CHR ROM for a given pattern table into
-	// an olc::Sprite, using a specified palette. Pattern tables consist
-	// of 16x16 "tiles or characters". It is independent of the running
-	// emulation and using it does not change the systems state, though
-	// it gets all the data it needs from the live system. Consequently,
-	// if the game has not yet established palettes or mapped to relevant
-	// CHR ROM banks, the sprite may look empty. This approach permits a 
-	// "live" extraction of the pattern table exactly how the NES, and 
-	// ultimately the player would see it.
 
-	// A tile consists of 8x8 pixels. On the NES, pixels are 2 bits, which
-	// gives an index into 4 different colours of a specific palette. There
-	// are 8 palettes to choose from. Colour "0" in each palette is effectively
-	// considered transparent, as those locations in memory "mirror" the global
-	// background colour being used. This mechanics of this are shown in 
-	// detail in ppuRead() & ppuWrite()
-
-	// Characters on NES
-	// ~~~~~~~~~~~~~~~~~
-	// The NES stores characters using 2-bit pixels. These are not stored sequentially
-	// but in singular bit planes. For example:
-	//
- 	// 2-Bit Pixels       LSB Bit Plane     MSB Bit Plane
-	// 0 0 0 0 0 0 0 0	  0 0 0 0 0 0 0 0   0 0 0 0 0 0 0 0
-	// 0 1 1 0 0 1 1 0	  0 1 1 0 0 1 1 0   0 0 0 0 0 0 0 0
-	// 0 1 2 0 0 2 1 0	  0 1 1 0 0 1 1 0   0 0 1 0 0 1 0 0
-	// 0 0 0 0 0 0 0 0 =  0 0 0 0 0 0 0 0 + 0 0 0 0 0 0 0 0
-	// 0 1 1 0 0 1 1 0	  0 1 1 0 0 1 1 0   0 0 0 0 0 0 0 0
-	// 0 0 1 1 1 1 0 0	  0 0 1 1 1 1 0 0   0 0 0 0 0 0 0 0
-	// 0 0 0 2 2 0 0 0	  0 0 0 1 1 0 0 0   0 0 0 1 1 0 0 0
-	// 0 0 0 0 0 0 0 0	  0 0 0 0 0 0 0 0   0 0 0 0 0 0 0 0
-	//
-	// The planes are stored as 8 bytes of LSB, followed by 8 bytes of MSB
-
+void dump_pattern_table (PPU2C02 * const ppu, NESrom * const cart, uint8_t const i) 
+{
 	// Loop through all 16x16 tiles
 	for (uint16_t nTileY = 0; nTileY < 16; nTileY++)
 	{
@@ -280,7 +253,7 @@ void dump_pattern_table(uint8_t i, uint8_t palette) {
 		{
 			// Convert the 2D tile coordinate into a 1D offset into the pattern
 			// table memory.
-			uint16_t nOffset = nTileY * 256 + nTileX * 16;
+			uint16_t offset = i * 0x1000 + ((nTileY << 8) + (nTileX << 4));
 
 			// Now loop through 8 rows of 8 pixels
 			for (uint16_t row = 0; row < 8; row++)
@@ -291,38 +264,28 @@ void dump_pattern_table(uint8_t i, uint8_t palette) {
 				// is stored as 64 bits of lsb, followed by 64 bits of msb. This
 				// conveniently means that two corresponding rows are always 8
 				// bytes apart in memory.
-				uint8_t tile_lsb = ppu_read(i * 0x1000 + nOffset + row + 0x0000);
-				uint8_t tile_msb = ppu_read(i * 0x1000 + nOffset + row + 0x0008);
+				uint8_t tile_lsb = cart->chr_data[offset + row];
+				uint8_t tile_msb = cart->chr_data[offset + row + 8];
 
 				// Now we have a single row of the two bit planes for the character
 				// we need to iterate through the 8-bit words, combining them to give
 				// us the final pixel index
 				for (uint16_t col = 0; col < 8; col++)
 				{
-					// We can get the index value by simply adding the bits together
-					// but we're only interested in the lsb of the row words because...
-					uint8_t pixel = (tile_lsb & 0x01) + (tile_msb & 0x01);
+					/* Get rightmost bit from each byte in memory */
+					uint8_t pixel = (tile_lsb & 1) + (tile_msb & 1);
 
-					// ...we will shift the row words 1 bit right for each column of
-					// the character.
-					tile_lsb >>= 1; tile_msb >>= 1;
+					/* X axis needs to be flipped */
+					uint16_t pX = (nTileX << 3) + (7 - col);
+					uint16_t pY = (nTileY << 3) + row;
 
-					// Now we know the location and NES pixel value for a specific location
-					// in the pattern table, we can translate that to a screen colour, and an
-					// (x,y) location in the sprite
-					sprPatternTable[i].SetPixel
-					(
-						nTileX * 8 + (7 - col), // Because we are using the lsb of the row word first
-												// we are effectively reading the row from right
-												// to left, so we need to draw the row "backwards"
-						nTileY * 8 + row, 
-						GetColourFromPaletteRam (palette, pixel)
-					);
+					/* Add to pattern table, with a shade based on pixel value */
+					ppu->patternTable[i][pY * 128 + pX] = pixel * 0x55;
+	
+					tile_lsb >>= 1;
+					tile_msb >>= 1;
 				}
 			}
 		}
 	}
-
-	// Finally return the updated sprite representing the pattern table
-	return sprPatternTable[i];
-}*/
+}

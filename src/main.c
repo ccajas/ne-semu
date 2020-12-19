@@ -154,7 +154,8 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
 
 inline void draw_debug_ppu (int32_t const x, int32_t const y)
 {
-    ppu_debug (&bus.ppu, x, y);
+    ppu_debug (&bus.ppu, x, y, 0);
+    ppu_debug (&bus.ppu, x, y, 1);
 }
 
 inline void draw_debug (GLFWwindow * window, Timer * timer)

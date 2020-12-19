@@ -140,7 +140,11 @@ inline void rom_load (Bus * const bus, const char* filename)
         rom->valid = 1;
     }
     /* Test disassembly output */
-    cpu_disassemble(bus, 0xc000, 0xc200);
+    cpu_disassemble (bus, 0xc000, 0xc200);
+
+    /* Test CHR dump */
+    dump_pattern_table (&bus->ppu, &bus->rom, 0);
+    dump_pattern_table (&bus->ppu, &bus->rom, 1);
 
     printf("(%s)\n", filename);
     free (filebuf);
