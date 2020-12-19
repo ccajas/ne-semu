@@ -25,42 +25,6 @@ void texture_init (uint32_t const textureID, GLenum wrapParam, GLenum minFilter)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-void texture_init_cubemap (uint32_t const textureID, GLenum wrapParam, uint32_t size)
-{
-    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
-    for (unsigned int i = 0; i < 6; i++) {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, size, size, 0, GL_RGB, GL_FLOAT, NULL);
-    }
-    
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, wrapParam);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, wrapParam);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, wrapParam);
-}
-
-uint32_t texture_new_cubemap (GLenum wrapParam, uint32_t size)
-{
-    uint32_t textureID = 0;
-    texture_create (&textureID);
-    texture_init_cubemap (textureID, wrapParam, size);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    return textureID;
-}
-
-uint32_t texture_new_cubemap_linear (GLenum wrapParam, uint32_t size)
-{
-    uint32_t textureID = 0;
-    texture_create (&textureID);
-    texture_init_cubemap (textureID, wrapParam, size);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    
-    glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-    return textureID;
-}
-
 uint32_t texture_new_blank (
     GLenum wrapParam, 
     GLenum internalFormat,
@@ -129,26 +93,5 @@ uint32_t texture_new (
         }
     }
 
-    return textureID;
-}
-
-uint32_t texture_new_HDR (const char* textureName, float* (*textureReadCallback)())
-{
-    int width, height, nrComponents;
-    uint32_t textureID = 0;
-    float *data = textureReadCallback (textureName, &width, &height, &nrComponents, 0);
-
-    if (data)
-    {
-        texture_create (&textureID);
-        texture_init (textureID, GL_CLAMP_TO_EDGE, GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data); 
-
-        //stbi_image_free(data);
-        free(data);
-    }
-    else {
-        e_printf("%s", "Failed to load HDR image\n");
-    }
     return textureID;
 }

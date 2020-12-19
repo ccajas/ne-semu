@@ -39,7 +39,8 @@ Shader shader_init (const char *filenameVS, const char *filenameFS)
         vertexShader   = shader_build(vertSource, GL_VERTEX_SHADER,   shader.program);
         fragmentShader = shader_build(fragSource, GL_FRAGMENT_SHADER, shader.program);      
     }
-    else {
+    else /* Load default shader */ 
+    {
         vertexShader   = shader_build(defaultVertSource, GL_VERTEX_SHADER,   shader.program);
         fragmentShader = shader_build(defaultFragSource, GL_FRAGMENT_SHADER, shader.program);      
     }

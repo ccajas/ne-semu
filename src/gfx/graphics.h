@@ -1,8 +1,7 @@
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#include "model_parsers.h"
-#include "render.h"
+#include "../app/timer.h"
 #include "text.h"
 
 typedef struct Camera_struct Camera;
@@ -10,9 +9,7 @@ typedef struct Camera_struct Camera;
 typedef struct Scene_struct
 {
     uint8_t bgColor[3];
-    Model   model;
     Shader  mainShader, skyboxShader;
-    Camera *camera;
 }
 Scene;
 
@@ -36,37 +33,90 @@ inline void graphics_init()
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
-static inline void draw_scene (GLFWwindow * window, Scene * scene, Camera * camera)
+inline void draw_scene (GLFWwindow * window, Scene * scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
 
-    mat4x4 model, view, proj;
-    //mat4x4_look_at(view, camera->pos, camera->target, camera->up);
+inline void draw_debug_cpu (int32_t const x, int32_t const y)
+{
+    char textbuf[256];
+    const float size = 0.5f;
 
-    glUseProgram (scene->mainShader.program);
+    text_draw_raised ("STATUS", x, y, size);
 
-    // Camera projection
+    sprintf (textbuf, "PC: $%04x", cpu->r.pc);
+    text_draw_raised (textbuf, x , y - 24, size);
+    sprintf (textbuf, "A: $%02x [%d]", cpu->r.a, cpu->r.a);
+    text_draw_raised (textbuf, x , y - 48, size);
+    sprintf (textbuf, "X: $%02x [%d]", cpu->r.x, cpu->r.x);
+    text_draw_raised (textbuf, x , y - 72, size);
+    sprintf (textbuf, "Y: $%02x [%d]", cpu->r.y, cpu->r.y);
+    text_draw_raised (textbuf, x , y - 96, size);
+    sprintf (textbuf, "Stack P: $%04x", cpu->r.sp);
+    text_draw_raised (textbuf, x , y - 120, size);
+}
+
+inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_t cols, int16_t const start)
+{
+    char textbuf[256];
+    const float size = 0.5f;
+    int16_t addr = start;
+
+    sprintf(textbuf, " ---- ");
+    for (int j = 0; j < cols; j++)
+    {
+        sprintf(textbuf + strlen(textbuf), "%02x ", j);
+    }
+    text_draw_raised (textbuf, x, y, size);
+    for (int i = 1; i <= rows; i++)
+    {
+        sprintf(textbuf, "$%04x ", (uint16_t)addr);
+        for (int j = 0; j < cols; j++)
+        {
+            sprintf(textbuf + strlen(textbuf), "%02x ", bus_read(&NES, addr++)); 
+        }
+        text_draw_raised (textbuf, x, y - (i * 16), size);
+    }
+}
+
+inline void draw_debug_ppu (int32_t const x, int32_t const y)
+{
+    ppu_debug (&NES.ppu, x, y, 0);
+    ppu_debug (&NES.ppu, x, y, 1);
+}
+
+void draw_debug (GLFWwindow * window, Timer * timer)
+{
+    update_timer (timer, glfwGetTime());
+
     int32_t width, height;
     glfwGetFramebufferSize(window, &width, &height);
-    //mat4x4_perspective(proj, camera->fov * (M_PI / 180.0f), (float) width / (float) height, 0.1f, 100.0f);
 
-    // get matrix uniform locations and set values
-    shader_apply (&scene->mainShader, "view", view);
-    shader_apply (&scene->mainShader, "projection", proj);
-    //shader_apply_3f (&scene->mainShader, "CamPos", camera->pos);
-    
-    shader_apply_int (&scene->mainShader, "brdfLUT",       TEXTURE_BRDF);
-    shader_apply_int (&scene->mainShader, "irradianceMap", TEXTURE_AMBIENT);
-    shader_apply_int (&scene->mainShader, "prefilterMap",  TEXTURE_PREFILTER);
+    char textbuf[256];     
+    text_begin (width, height);
+    const GLubyte* vendor = glGetString(GL_VENDOR); // Returns the vendor
+    const GLubyte* renderer = glGetString(GL_RENDERER); // Returns a hint to the model
 
-    mat4x4_identity (model);
-    mat4x4_scale (model, model, 1.0f / scene->model.scale);
-    mat4x4_translate_in_place (model, -scene->model.center[0], -scene->model.center[1], -scene->model.center[2]);
-    shader_apply (&scene->mainShader, "model", model);
+    /* Debug CPU and RAM */
+    sprintf(textbuf, "PC: $%04x %02x %s Ticks: %d, Cycles: %ld", 
+        cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockticks, cpu->clockCount);
+    text_draw_white (textbuf, 16.0f, 64.0f, 0.6f);
 
-    glEnable(GL_CULL_FACE);
-    draw_lazy_model (&scene->model);
+    /* Vendor and framerate info */
+    sprintf(textbuf, "Vendor: %s Renderer: %s", vendor, renderer);
+    text_draw_white (textbuf, 16.0f, 40.0f, 0.6f);
+    sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
+    text_draw_white (textbuf, 16.0f, 16.0f, 0.6f);
+
+    /* CPU registers and storage locations for program/vars */
+    draw_debug_cpu(width - 240, height - 24);
+    draw_debug_ram(16, height - 24,  16, 16, 0x0);
+    draw_debug_ram(16, height - 336, 16, 16, 0x8000);
+
+    /* Graphical PPU debug */
+    draw_debug_ppu(width, height);
 }
 
 #endif

@@ -6,32 +6,7 @@
 #include "app/timer.h"
 #include "app/glfw_callbacks.h"
 #include "app/inputstates.h"
-#include "app/camera.h"
 #include "../nfd/src/nfd.h"
-
-inline void nfd_open_file (void (*load_func)(const char*))
-{
-	char *outPath = NULL;
-	nfdresult_t result = NFD_OpenDialog (NULL, NULL, &outPath);
-		
-    if (result == NFD_OKAY) 
-    {
-		printf ("Opening %s \n", outPath);
-        if (load_func) {
-		    load_func (outPath);
-        }
-        else {
-            printf("No callback defined for opening file\n");
-        }
-		free (outPath);
-	}
-	else if (result == NFD_CANCEL) {
-		puts ("User pressed cancel.");
-	}
-	else {
-		printf ("Error: %s\n", NFD_GetError());
-	}
-}
 
 typedef void (*appEventPtr)();
 
@@ -69,17 +44,21 @@ inline void app_capture_mouse_scroll (App * app, double xOffset, double yOffset)
 inline void app_capture_drop (App * app, char * paths[])
 {
     app->dropPath = paths[0];
-    //model_load (&app->scene.model, app->dropPath);
-    //model_assign_shader (&app->scene.model, &app->scene.mainShader);
+
+    /* Attempt to load the file */
+    rom_load (&NES, app->dropPath);
+    free (app->dropPath);
+    bus_reset (&NES);
 }
 
 void app_init(App * app)
 {
     app->window = glfw_setup_window (app->resolution[0], app->resolution[1], app->title);
-    app->scene = (Scene){0};
+    app->scene = (Scene){ .bgColor = { 117, 119, 121} };
 
+    /* Initialize graphics and emulation system */
     graphics_init();
-    bus_reset (&bus);
+    bus_reset (&NES);
 
     glfwSetWindowUserPointer       (app->window, app);
 
@@ -168,17 +147,16 @@ inline void app_update (App * app)
             
         if (result == NFD_OKAY) 
         {
-            printf ("Opening %s \n", outPath);
-            rom_load (&bus, outPath);
+            rom_load (&NES, outPath);
             free (outPath);
-            bus_reset (&bus);
+            bus_reset (&NES);
         }
     }
 
     /* Step CPU */
     if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_A)) 
     {
-        bus_clock (&bus);
+        bus_clock (&NES);
     }
 
     /* Run CPU */
@@ -190,7 +168,7 @@ inline void app_update (App * app)
     /* Reset CPU */
     if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_R)) 
     {
-        bus_reset (&bus);
+        bus_reset (&NES);
     }
 
     /* Check for closing window */
@@ -203,7 +181,7 @@ inline void app_update (App * app)
     /* Update emulator */
     if (app->emulationRun)
     {
-        cpu_exec (&bus.cpu, 100);
+        bus_exec (&NES, 100);
     }
 
     /* Update window title */
@@ -217,9 +195,8 @@ inline void app_update (App * app)
 
 void app_draw(App * app)
 {
-    camera_update (app->scene.camera, app->mouseState, app->lastMouseState, 1.5);
-    //draw_skybox (&app.scene, app->scene.camera, pbrm);
-    draw_scene (app->window, &app->scene, app->scene.camera);
+    draw_scene (app->window, &app->scene);
+    draw_debug (app->window, &app->timer);
 }
 
 void app_free(App * app)
