@@ -18,8 +18,9 @@ typedef struct CPU6502_struct
     uint8_t  clockticks;
 
     /* Meta vars */
-    uint8_t getlastop;
-    char    lastop[8], lastmode[8];
+    uint8_t  debug;
+    uint8_t  opID;
+    char     lastop[8], lastmode[8];
 }
 CPU6502;
 
@@ -48,4 +49,4 @@ typedef struct Bus_struct Bus;
 void cpu_reset       (CPU6502 * const cpu);
 void cpu_clock       (CPU6502 * const cpu);
 void cpu_exec        (CPU6502 * const cpu, uint32_t const tickcount);
-void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end);
+void cpu_disassemble (Bus     * const bus, uint16_t const start, uint16_t const end);

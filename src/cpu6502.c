@@ -6,21 +6,11 @@
 #include "bus.h"
 
 //externally supplied functions
-uint8_t cpu_read (uint16_t address)                { return bus_read(&bus, address);  }
-void    cpu_write(uint16_t address, uint8_t value) { bus_write(&bus, address, value); }
-
-const uint16_t
-    CPU_RAM_START   = 0,
-    PPU_REG_START   = 0x2000,
-    APU_IO_START    = 0x4000,
-    APU_IO_DISABLED = 0x4018,
-    PRG_START       = 0x4020,
-    PRG_RAM_START   = 0x6000,
-    PRG_ROM_START   = 0x8000,
-    PRG_ROM_END     = 0xffff;
+uint8_t cpu_read (uint16_t address)                { return bus_read(&NES, address);  }
+void    cpu_write(uint16_t address, uint8_t value) { bus_write(&NES, address, value); }
 
 //6502 defines
-CPU6502 *cpu = &bus.cpu;
+CPU6502 *cpu = &NES.cpu;
 
 #define saveaccum(n) cpu->r.a = (uint8_t)((n) & 0xff)
 
@@ -30,8 +20,8 @@ CPU6502 *cpu = &bus.cpu;
 
 /* Meta function macros (for disassembly/debugging) */
 
-#define get_opname()   if (cpu->getlastop) { sprintf(cpu->lastop,   "%s",  __func__); return; } 
-#define get_addrmode() if (cpu->getlastop) { sprintf(cpu->lastmode, "%4s", __func__); return; } 
+#define get_opname()   if (cpu->debug) { sprintf(cpu->lastop,   "%s",  __func__); return; } 
+#define get_addrmode() if (cpu->debug) { sprintf(cpu->lastmode, "%4s", __func__); return; } 
 #define to_upper(str) {\
     char *s = str;\
     while (*s) {*s = (unsigned char)(*s - 32); s++; }\
@@ -69,6 +59,73 @@ CPU6502 *cpu = &bus.cpu;
     cpu->r.pc = cpu->abs_addr;\
 }
 
+/* Forward declare the op table */
+
+struct  Instruction optable[256];
+uint8_t penaltyop, penaltyaddr;
+
+void cpu_reset (CPU6502 * const cpu) 
+{
+    cpu->abs_addr = 0xfffc;
+
+	/* Reset/clear registers */
+    cpu->r.pc = (uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
+    cpu->r.a = 0;
+    cpu->r.x = 0;
+    cpu->r.y = 0;
+    cpu->r.sp = 0xfd;
+    cpu->r.status = 0 | FLAG_CONSTANT | FLAG_INTERRUPT;
+
+	/* Reset helper vars */
+	cpu->abs_addr = 0x0;
+	cpu->rel_addr = 0x0;
+	cpu->value = 0;
+    cpu->debug = 0;
+
+	/* Takes 7 cycles to reset */
+    cpu->clockticks = 7;
+}
+
+void cpu_clock (CPU6502 * const cpu)
+{
+    if (cpu->clockticks == 0)
+    {
+        cpu->lastpc = cpu->r.pc;
+        cpu->opcode = cpu_read(cpu->r.pc++);
+        cpu->r.status |= FLAG_CONSTANT;
+
+        /* Fetch OP name, convert op position from table into ID */
+        cpu->debug = 1;
+        cpu->opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+
+        (*optable[cpu->opID].addrmode)();
+        (*optable[cpu->opID].op)();
+
+        to_upper(cpu->lastop);
+        cpu->debug = 0;
+
+        printf("$%04x %02x %s (%s) : A:%02x X:%02x Y:%02x P:%02x SP:%02x CYC:%ld\n", 
+            cpu->lastpc, cpu->opcode, cpu->lastop, cpu->lastmode, 
+            cpu->r.a, cpu->r.x, cpu->r.y, cpu->r.status, cpu->r.sp, cpu->clockCount);
+
+        /* Exec instruction and get no. of cycles */
+        penaltyop = 0;
+        penaltyaddr = 0;
+        cpu->clockticks = optable[cpu->opID].ticks;
+
+        (*optable[cpu->opID].addrmode)();
+        (*optable[cpu->opID].op)();
+
+        if (penaltyop && penaltyaddr) cpu->clockticks++;
+
+        /* Reset the unused flag */
+        cpu->r.status |= FLAG_CONSTANT;
+        cpu->instructions++;
+    }
+    cpu->clockticks--;
+    cpu->clockCount++;
+}
+
 //a few general functions used by various other functions
 inline void push16 (uint16_t pushval) 
 {
@@ -95,11 +152,6 @@ inline uint8_t pull8()
     cpu->r.sp++;
     return (cpu_read (BASE_STACK + cpu->r.sp));
 }
-
-//static struct Instruction optable[][64];
-static struct Instruction optable[256];
-
-uint8_t penaltyop, penaltyaddr;
 
 /* addressing mode functions, calculates effective addresses */
 
@@ -222,8 +274,7 @@ void zpy()
 
 static uint16_t getvalue() 
 {
-    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
-    if (!(optable[opID].addrmode == impl))
+    if (!(optable[cpu->opID].addrmode == impl))
 		cpu->value = cpu_read (cpu->abs_addr);
 
 	return cpu->value;
@@ -231,8 +282,7 @@ static uint16_t getvalue()
 
 static void putvalue(uint16_t saveval) 
 {
-    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
-    if (optable[opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
+    if (optable[cpu->opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
         else cpu_write (cpu->abs_addr, (saveval & 0xff));
 }
 
@@ -811,72 +861,9 @@ static void rra() {
     if (penaltyop && penaltyaddr) cpu->clockticks--;
 }
 
-#ifdef usetables
-
-static void (*addrtable[256])() = {
-/*        |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  A  |  B  |  C  |  D  |  E  |  F  |     */
-/* 0 */    impl, idx,  impl, idx,   zp,   zp,   zp,   zp,  impl,  imm,  acc,  imm, abso, abso, abso, abso, /* 0 */
-/* 1 */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx, /* 1 */
-/* 2 */    abso, idx,  impl, idx,   zp,   zp,   zp,   zp,  impl,  imm,  acc,  imm, abso, abso, abso, abso, /* 2 */
-/* 3 */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx, /* 3 */
-/* 4 */    impl, idx,  impl, idx,   zp,   zp,   zp,   zp,  impl,  imm,  acc,  imm, abso, abso, abso, abso, /* 4 */
-/* 5 */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx, /* 5 */
-/* 6 */    impl, idx,  impl, idx,   zp,   zp,   zp,   zp,  impl,  imm,  acc,  imm,  ind, abso, abso, abso, /* 6 */
-/* 7 */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx, /* 7 */
-/* 8 */     imm, idx,  imm,  idx,   zp,   zp,   zp,   zp,  impl,  imm, impl,  imm, abso, abso, abso, abso, /* 8 */
-/* 9 */     rel, idy,  impl, idy,  zpx,  zpx,  zpy,  zpy,  impl, absy, impl, absy, absx, absx, absy, absy, /* 9 */
-/* A */     imm, idx,  imm,  idx,   zp,   zp,   zp,   zp,  impl,  imm, impl,  imm, abso, abso, abso, abso, /* A */
-/* B */     rel, idy,  impl, idy,  zpx,  zpx,  zpy,  zpy,  impl, absy, impl, absy, absx, absx, absy, absy, /* B */
-/* C */     imm, idx,  imm,  idx,   zp,   zp,   zp,   zp,  impl,  imm, impl,  imm, abso, abso, abso, abso, /* C */
-/* D */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx, /* D */
-/* E */     imm, idx,  imm,  idx,   zp,   zp,   zp,   zp,  impl,  imm, impl,  imm, abso, abso, abso, abso, /* E */
-/* F */     rel, idy,  impl, idy,  zpx,  zpx,  zpx,  zpx,  impl, absy, impl, absy, absx, absx, absx, absx  /* F */
-};   
-
-static void (*optable2[256])() = {
-/*        |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  A  |  B  |  C  |  D  |  E  |  F  |      */
-/* 0 */      brk,  ora,  nop,  slo,  nop,  ora,  asl,  slo,  php,  ora,  asl,  nop,  nop,  ora,  asl,  slo, /* 0 */
-/* 1 */      bpl,  ora,  nop,  slo,  nop,  ora,  asl,  slo,  clc,  ora,  nop,  slo,  nop,  ora,  asl,  slo, /* 1 */
-/* 2 */      jsr,  and,  nop,  rla,  bit,  and,  rol,  rla,  plp,  and,  rol,  nop,  bit,  and,  rol,  rla, /* 2 */
-/* 3 */      bmi,  and,  nop,  rla,  nop,  and,  rol,  rla,  sec,  and,  nop,  rla,  nop,  and,  rol,  rla, /* 3 */
-/* 4 */      rti,  eor,  nop,  sre,  nop,  eor,  lsr,  sre,  pha,  eor,  lsr,  nop,  jmp,  eor,  lsr,  sre, /* 4 */
-/* 5 */      bvc,  eor,  nop,  sre,  nop,  eor,  lsr,  sre,  cli,  eor,  nop,  sre,  nop,  eor,  lsr,  sre, /* 5 */
-/* 6 */      rts,  adc,  nop,  rra,  nop,  adc,  ror,  rra,  pla,  adc,  ror,  nop,  jmp,  adc,  ror,  rra, /* 6 */
-/* 7 */      bvs,  adc,  nop,  rra,  nop,  adc,  ror,  rra,  sei,  adc,  nop,  rra,  nop,  adc,  ror,  rra, /* 7 */
-/* 8 */      nop,  sta,  nop,  sax,  sty,  sta,  stx,  sax,  dey,  nop,  txa,  nop,  sty,  sta,  stx,  sax, /* 8 */
-/* 9 */      bcc,  sta,  nop,  nop,  sty,  sta,  stx,  sax,  tya,  sta,  txs,  nop,  nop,  sta,  nop,  nop, /* 9 */
-/* A */      ldy,  lda,  ldx,  lax,  ldy,  lda,  ldx,  lax,  tay,  lda,  tax,  nop,  ldy,  lda,  ldx,  lax, /* A */
-/* B */      bcs,  lda,  nop,  lax,  ldy,  lda,  ldx,  lax,  clv,  lda,  tsx,  lax,  ldy,  lda,  ldx,  lax, /* B */
-/* C */      cpy,  cmp,  nop,  dcp,  cpy,  cmp,  dec,  dcp,  iny,  cmp,  dex,  nop,  cpy,  cmp,  dec,  dcp, /* C */
-/* D */      bne,  cmp,  nop,  dcp,  nop,  cmp,  dec,  dcp,  cld,  cmp,  nop,  dcp,  nop,  cmp,  dec,  dcp, /* D */
-/* E */      cpx,  sbc,  nop,  isc,  cpx,  sbc,  inc,  isc,  inx,  sbc,  nop,  sbc,  cpx,  sbc,  inc,  isc, /* E */
-/* F */      beq,  sbc,  nop,  isc,  nop,  sbc,  inc,  isc,  sed,  sbc,  nop,  isc,  nop,  sbc,  inc,  isc  /* F */
-};
-
-static const uint8_t ticktable[256] = {
-/*        |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  |  A  |  B  |  C  |  D  |  E  |  F  |     */
-/* 0 */      7,    6,    2,    8,    3,    3,    5,    5,    3,    2,    2,    2,    4,    4,    6,    6,  /* 0 */
-/* 1 */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7,  /* 1 */
-/* 2 */      6,    6,    2,    8,    3,    3,    5,    5,    4,    2,    2,    2,    4,    4,    6,    6,  /* 2 */
-/* 3 */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7,  /* 3 */
-/* 4 */      6,    6,    2,    8,    3,    3,    5,    5,    3,    2,    2,    2,    3,    4,    6,    6,  /* 4 */
-/* 5 */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7,  /* 5 */
-/* 6 */      6,    6,    2,    8,    3,    3,    5,    5,    4,    2,    2,    2,    5,    4,    6,    6,  /* 6 */
-/* 7 */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7,  /* 7 */
-/* 8 */      2,    6,    2,    6,    3,    3,    3,    3,    2,    2,    2,    2,    4,    4,    4,    4,  /* 8 */
-/* 9 */      2,    6,    2,    6,    4,    4,    4,    4,    2,    5,    2,    5,    5,    5,    5,    5,  /* 9 */
-/* A */      2,    6,    2,    6,    3,    3,    3,    3,    2,    2,    2,    2,    4,    4,    4,    4,  /* A */
-/* B */      2,    5,    2,    5,    4,    4,    4,    4,    2,    4,    2,    4,    4,    4,    4,    4,  /* B */
-/* C */      2,    6,    2,    8,    3,    3,    5,    5,    2,    2,    2,    2,    4,    4,    6,    6,  /* C */
-/* D */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7,  /* D */
-/* E */      2,    6,    2,    8,    3,    3,    5,    5,    2,    2,    2,    2,    4,    4,    6,    6,  /* E */
-/* F */      2,    5,    2,    8,    4,    4,    6,    6,    2,    4,    2,    7,    4,    4,    7,    7   /* F */
-};
-#endif
-
 /* Opcodes are grouped by type, then fetched later via ordering in the table */
 
-static struct Instruction optable[256] = {
+struct Instruction optable[256] = {
     /* (Mostly) control instructions */
        /* 0x0              0x4             0x8              0xc  */
         { brk, impl,7 }, { nop, zp, 3 }, { php, impl,3 }, { nop, abso,4 }, { bpl, rel, 2 }, { nop, zpx, 4 }, { clc, impl, 2 }, { nop, absx, 4 },
@@ -922,102 +909,6 @@ static struct Instruction optable[256] = {
         { isc, idx, 8 }, { isc, zp, 5 }, { sbc, imm, 2 }, { isc, abso,6 }, { isc, idy, 8 }, { isc, zpx, 6 }, { isc, absy, 7 }, { isc, absx, 7 }
 };
 
-#ifdef populate
-void set_op_(void (*op)(), uint8_t op_arr[]) 
-{
-    for (int i = 0; op_arr[i] != 0; i++) {
-        optable[op_arr[i]] = op;
-    }
-};
-
-void populate_opcodes()
-{
-    #define set_op(ins, ...) set_op_(ins, (uint8_t[]){__VA_ARGS__, 0});
-
-    for (int i = 0; i < 255; i++)
-        optable[i] = nop;
-
-    /* (Mostly) control instructions */
-
-    optable[0] = brk;
-    set_op (php, 0x08);
-    set_op (bpl, 0x10);
-    set_op (clc, 0x18);
-    set_op (jsr, 0x20);
-    set_op (bit, 0x24, 0x2c);
-    set_op (plp, 0x28);
-    set_op (bmi, 0x30);
-    set_op (sec, 0x38);
-    set_op (rti, 0x40);
-    set_op (pha, 0x48);
-    set_op (jmp, 0x4c, 0x6c);
-    set_op (bvc, 0x50);
-    set_op (cli, 0x58);
-    set_op (rts, 0x60);
-    set_op (pla, 0x68);
-    set_op (bvs, 0x70);
-    set_op (sei, 0x78);
-    set_op (sty, 0x84);
-    set_op (sty, 0x8c, 0x94);
-    set_op (dey, 0x88);
-    set_op (bcc, 0x90);
-    set_op (tya, 0x98);
-    set_op (ldy, 0xa0, 0xa4, 0xac, 0xb4, 0xbc);
-    set_op (tay, 0xa8);
-    set_op (bcs, 0xb0);
-    set_op (clv, 0xb8);
-    set_op (cpy, 0xc0, 0xc4, 0xcc);
-    set_op (iny, 0xc8);
-    set_op (bne, 0xd0);
-    set_op (cld, 0xd8);
-    set_op (cpx, 0xe0, 0xe4, 0xec);
-    set_op (inx, 0xe8);
-    set_op (beq, 0xf0);
-    set_op (sed, 0xf8);
-
-    /* ALU operations */
-
-    set_op (ora, 0x01, 0x05, 0x09, 0x0d, 0x11, 0x15, 0x19, 0x1d);
-    set_op (and, 0x21, 0x25, 0x29, 0x2d, 0x31, 0x35, 0x39, 0x3d);
-    set_op (eor, 0x41, 0x45, 0x49, 0x4d, 0x51, 0x55, 0x59, 0x5d);
-    set_op (adc, 0x61, 0x65, 0x69, 0x6d, 0x71, 0x75, 0x79, 0x7d);
-    set_op (sta, 0x81, 0x85,       0x8d, 0x91, 0x95, 0x99, 0x9d);
-    set_op (lda, 0xa1, 0xa5, 0xa9, 0xad, 0xb1, 0xb5, 0xb9, 0xbd);
-    set_op (cmp, 0xc1, 0xc5, 0xc9, 0xcd, 0xd1, 0xd5, 0xd9, 0xdd);
-    set_op (sbc, 0xe1, 0xe5, 0xe9, 0xed, 0xf1, 0xf5, 0xf9, 0xfd);
-
-    /* read-mod-write operations */
-
-    set_op (asl, 0x06, 0x0a, 0x0e, 0x16, 0x1e);
-    set_op (rol, 0x26, 0x2a, 0x2e, 0x36, 0x3e);
-    set_op (lsr, 0x46, 0x4a, 0x4e, 0x56, 0x5e);
-    set_op (ror, 0x66, 0x6a, 0x6e, 0x76, 0x7e);
-    set_op (stx, 0x86, 0x8e, 0x96);
-    set_op (txa, 0x8a);
-    set_op (txs, 0x9a);
-    set_op (ldx, 0xa2, 0xa6, 0xae, 0xb6, 0xbe) 
-    set_op (tax, 0xaa);  
-    set_op (tsx, 0xba);
-    set_op (dec, 0xc6, 0xce, 0xd6, 0xde); 
-    set_op (dex, 0xca); 
-    set_op (inc, 0xe6, 0xee, 0xf6, 0xfe);
-
-    /* Unofficial opcodes */
-
-    set_op (slo, 0x03, 0x07, 0x0f, 0x13, 0x17, 0x1b, 0x1f);
-    set_op (rla, 0x23, 0x27, 0x2f, 0x33, 0x37, 0x3b, 0x3f);
-    set_op (sre, 0x43, 0x47, 0x4f, 0x53, 0x57, 0x5b, 0x5f);
-    set_op (rra, 0x63, 0x67, 0x6f, 0x73, 0x77, 0x7b, 0x7f);
-    set_op (sax, 0x83, 0x87, 0x8f, 0x97);
-    set_op (lax, 0xa3, 0xa7, 0xab, 0xaf, 0xb3, 0xb7, 0xbf);
-    set_op (dcp, 0xc3, 0xc7, 0xcf, 0xd3, 0xd7, 0xdb, 0xdf);
-    set_op (isc, 0xe3, 0xe7, 0xef, 0xf3, 0xf7, 0xfb, 0xff);
-    set_op (sbc, 0xeb);
-
-    #undef set_op
-}
-#endif
-
 void nmi6502() 
 {
     push16 (cpu->r.pc);
@@ -1034,86 +925,12 @@ void irq6502()
     cpu->r.pc = (uint16_t)cpu_read(0xfffe) | ((uint16_t)cpu_read(0xffff) << 8);
 }
 
-void cpu_reset (CPU6502 * const cpu) 
-{
-    cpu->abs_addr = 0xfffc;
-
-	/* Reset/clear registers */
-    cpu->r.pc = 0xc000;//(uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
-    cpu->r.a = 0;
-    cpu->r.x = 0;
-    cpu->r.y = 0;
-    cpu->r.sp = 0xfd;
-    cpu->r.status = 0 | FLAG_CONSTANT | FLAG_INTERRUPT;
-
-	/* Reset helper vars */
-	cpu->abs_addr = 0x0;
-	cpu->rel_addr = 0x0;
-	cpu->value = 0;
-    cpu->getlastop = 0;
-
-	/* Takes 7 cycles to reset */
-    cpu->clockticks = 7;
-}
-
-void cpu_run_instruction (CPU6502 * const cpu)
-{
-    cpu->lastpc = cpu->r.pc;
-    cpu->opcode = cpu_read(cpu->r.pc++);
-    cpu->r.status |= FLAG_CONSTANT;
-
-    /* Fetch OP name */
-    cpu->getlastop = 1;
-    const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
-    (*optable[opID].addrmode)();
-    (*optable[opID].op)();
-    to_upper(cpu->lastop);
-    cpu->getlastop = 0;
-
-    printf("$%04x %02x %s (%s) : A:%02x X:%02x Y:%02x P:%02x SP:%02x CYC:%ld\n", 
-       cpu->lastpc, cpu->opcode, cpu->lastop, cpu->lastmode, cpu->r.a, cpu->r.x, cpu->r.y, cpu->r.status, cpu->r.sp, cpu->clockCount);
-
-    /* Exec instruction and get no. of cycles */
-    penaltyop = 0;
-    penaltyaddr = 0;
-    cpu->clockticks = optable[opID].ticks;
-
-    (*optable[opID].addrmode)();
-    (*optable[opID].op)();
-
-    if (penaltyop && penaltyaddr) cpu->clockticks++;
-
-    /* Reset the unused flag */
-    cpu->r.status |= FLAG_CONSTANT;
-    cpu->instructions++;
-}
-
-void cpu_exec (CPU6502 * const cpu, uint32_t const tickcount)
-{
-    cpu->clockGoal += tickcount;
-
-    while (cpu->clockCount < cpu->clockGoal) 
-    {
-        cpu_clock (cpu);
-    }
-}
-
-void cpu_clock (CPU6502 * const cpu)
-{
-    if (cpu->clockticks == 0)
-    {
-        cpu_run_instruction (cpu);
-    }
-    cpu->clockticks--;
-    cpu->clockCount++;
-}
-
 void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 {
     uint16_t addr = start;
 	uint8_t  value = 0x00, lo = 0x00, hi = 0x00;
 
-    cpu->getlastop = 1;
+    cpu->debug = 1;
 
     while (addr <= end)
 	{
@@ -1223,7 +1040,7 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
         printf("%s", sInst);
 	}
 
-    cpu->getlastop = 0;
+    cpu->debug = 0;
 
 	//return mapLines;
 }
