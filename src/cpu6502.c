@@ -940,10 +940,10 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 		/* Prefix line with instruction address */
 		/* Read instruction, and get its readable name */
 		uint8_t opcode = bus_read (bus, addr++);
-        const uint8_t opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+        const uint8_t opID = ((opcode & 3) * 0x40) + (opcode >> 2);
         (*optable[opID].op)();
 
-        sprintf(textbuf, "$%04x: %02x ", addr, opcode);
+        sprintf(textbuf, "$%04x: %02x ", addr, opID);
 		strcat(sInst, textbuf);
 
         to_upper(cpu->lastop);
