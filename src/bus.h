@@ -25,7 +25,7 @@ inline void bus_reset (Bus * const bus)
 {
     bus->clockCount = 0;
 
-    ppu_reset (&bus->ppu);
+    ppu_reset (&bus->ppu, &bus->rom);
     cpu_reset (&bus->cpu);
     printf("Program counter set to %x \n", bus->cpu.r.pc);
 }
@@ -34,11 +34,11 @@ inline void bus_reset (Bus * const bus)
 
 inline void bus_clock (Bus * const bus)
 {
+    cpu_clock (&bus->cpu);
     for (int i = 0; i < 3; i++)
     {
         ppu_clock (&bus->ppu);
     }
-    cpu_clock (&bus->cpu);
 }
 
 inline void bus_exec (Bus * const bus, uint32_t const tickcount)

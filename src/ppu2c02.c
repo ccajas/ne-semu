@@ -82,84 +82,108 @@ void ppu_create_image (PPU2C02 * const ppu)
     glBindVertexArray(0);
 }
 
-void ppu_reset (PPU2C02 * const ppu)
+void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 {
 	ppu_create_image (ppu);
-
+	ppu->scanline = 0;
+	ppu->cycle = 0;
 	ppu->frame = 0;
-/*
-	// setup FBO
-	glGenFramebuffers( 1, &FFrameBuffer );
-	glBindFramebuffer( GL_FRAMEBUFFER, FFrameBuffer );
-	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0 );
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
-	// cleanup
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-	glDeleteFramebuffers( 1, &FFrameBuffer );
-*/
+	/* Give direct access to rom's CHR data via pointer (read/write) */
+	ppu->romCHR = rom->CHRdata.data;
+
+	if (ppu->romCHR)
+	{
+        dump_pattern_table (ppu, 0);
+        dump_pattern_table (ppu, 1);
+	}
+}
+
+void ppu_vram_increment (PPU2C02 * const ppu)
+{
+	ppu->VramAddress += (ppu->control & 0x4) ? 32 : 1;
 }
 
 uint8_t ppu_cpu_read (PPU2C02 * const ppu, uint16_t const address)
 {
-	printf("PPU read!\n");
+	assert (address <= 0x7);
 	uint8_t data = 0x00;
-	/*switch (addr)
-		{	
-			// Status
-		case 0x2:
-			// Reading from the status register has the effect of resetting
-			// different parts of the circuit. Only the top three bits
-			// contain status information, however it is possible that
-			// some "noise" gets picked up on the bottom 5 bits which 
-			// represent the last PPU bus transaction. Some games "may"
-			// use this noise as valid data (even though they probably
-			// shouldn't)
-			data = (status.reg & 0xE0) | (ppu_data_buffer & 0x1F);
+	
+	switch (address)
+	{	
+		case PPU_STATUS:
+			/* Combine top 3 bits of register and bottom 3 bits of data buffer */ 
+			data = (ppu->status & 0xe0) | (ppu->dataBuffer & 0x1f);
 
-			// Clear the vertical blanking flag
-			status.vertical_blank = 0;
-
-			// Reset Loopy's Address latch flag
-			address_latch = 0;
+			/* Clear vblank */
+			ppu->status &= (~VERTICAL_BLANK);
+			ppu->addressLatch = 0;
 			break;
 
-			// OAM Address
-		case 0x0003: break;
+		case PPU_DATA:
 
-			// OAM Data
-		case 0x0004: break;
+			/* Return data from previous data request (dummy read). Data buffer
+			   is returned in the next request */
+			data = ppu->dataBuffer;
+			ppu->dataBuffer = ppu_read (ppu, ppu->VramAddress);
 
-			// PPU Data
-		case 0x0007: 
-			data = ppu_data_buffer;
-			ppu_data_buffer = ppuRead(vram_addr.reg);
-			if (vram_addr.reg >= 0x3F00) data = ppu_data_buffer;
-			vram_addr.reg += (control.increment_mode ? 32 : 1);
+			/* The exception is reading from palette data, return it immediately */
+			if (ppu->VramAddress >= 0x3f00)
+				data = ppu->dataBuffer;
+
+			ppu_vram_increment (ppu);
 			break;
+
+		/* Unused */
 		default:
+			/* 0x0 (control), 0x1 (mask), 0x5 (scroll), 0x6 (PPU address) are write-only */
 			break;
-		}*/
+	}
 	return data;
+}
+
+void ppu_cpu_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data)
+{
+	assert (address <= 0x7);
+
+	switch (address)
+	{
+		case PPU_CONTROL:
+			/* Just write to control register */
+			ppu->control = data;
+			break;
+
+		case PPU_ADDRESS:
+
+			break;
+
+		case PPU_DATA:
+			ppu_write (ppu, ppu->VramAddress, data);
+			ppu_vram_increment (ppu);
+			break;
+
+		default:
+			/* 0x2 (status) not usable here */
+			break;
+	}
 }
 
 uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 {
-	/* Map to lowest 16kB */
+	/* Address should be mapped to lowest 16kB */
+	assert (address <= 0x3fff);
 	uint8_t data = 0x00;
-	address &= 0x3fff;
 
-	/*if (cart->ppuRead(addr, data))
-	{
-
-	}*/
 	if (address >= 0x0000 && address <= 0x1fff)
 	{
-		data = ppu->patternTable[(address & 0x1000) >> 12][address & 0x0fff];
+		data = ppu->romCHR[address];
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
-
+		/* Read from name table data (mirrored every 4KB) 
+		   Todo: handle vertical mirroring mode */
+		address &= 0x0fff;
+		data = ppu->nameTables[address];
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
@@ -174,27 +198,51 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 	return data;
 }
 
+void ppu_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data)
+{
+
+}
+
 void ppu_clock (PPU2C02 * const ppu)
 {
-	// Fake some noise for now
-	//sprScreen.SetPixel(cycle - 1, scanline, palScreen[(rand() % 2) ? 0x3F : 0x30]);
+	/* render to FBO
+	glBindFramebuffer( GL_FRAMEBUFFER, FFrameBuffer );
+	glViewport( 0, 0, 256, 240);
 
-	// render to FBO
-	//glBindFramebuffer( GL_FRAMEBUFFER, FFrameBuffer );
-	//glViewport( 0, 0, 256, 240);
-
-	//glBindFramebuffer( GL_FRAMEBUFFER, 0);
+	glBindFramebuffer( GL_FRAMEBUFFER, 0); */
 
 	ppu->clockCount++;
+	ppu->cycle++;
 
 	if (ppu->cycle >= 341)
 	{
 		ppu->cycle = 0;
 		ppu->scanline++;
 
-		if (ppu->scanline >= 261)
+		if (ppu->scanline >= 1 && ppu->scanline <= 240) /* Visible scanlines */
 		{
-			ppu->scanline = -1;
+			/* Should scan through OAM here. Also, set pixels */
+		}
+
+		if (ppu->scanline == 241) /* Post visible scanline */
+		{
+			/* Trigger VMI interrupt if needed */
+			if (ppu->control & GENERATE_VBLANK_NMI)
+			{
+               	ppu->status |= VERTICAL_BLANK;
+	
+            }
+		}
+
+		if (ppu->scanline == 261) /* Pre-render scanline */
+		{
+
+		}
+
+		if (ppu->scanline >= 262) /* 262 lines counting line 0 */
+		{
+			ppu->status &= (~VERTICAL_BLANK);
+			ppu->scanline = 0;
 			ppu->frame++;
 		}
 	}
@@ -255,9 +303,8 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void dump_pattern_table (PPU2C02 * const ppu, NESrom * const cart, uint8_t const i) 
+void dump_pattern_table (PPU2C02 * const ppu, uint8_t const i) 
 {
-
 	for (uint16_t tile = 0; tile < 256; tile++)
 	{
 		/* Get offset value in memory based on tile position */
@@ -266,8 +313,8 @@ void dump_pattern_table (PPU2C02 * const ppu, NESrom * const cart, uint8_t const
 		/* Loop through each row of a tile */
 		for (uint16_t row = 0; row < 8; row++)
 		{
-			uint8_t tile_lsb = cart->chr_data[offset + row];
-			uint8_t tile_msb = cart->chr_data[offset + row + 8];
+			uint8_t tile_lsb = ppu->romCHR [offset + row];
+			uint8_t tile_msb = ppu->romCHR [offset + row + 8];
 
 			/* Loop through a single row of the bit planes and combine values */
 			for (uint16_t col = 0; col < 8; col++)

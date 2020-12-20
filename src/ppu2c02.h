@@ -5,19 +5,59 @@
 
 typedef struct PPU2C02_Struct 
 {
-    /* PPU registers */
+    enum ppuRegisters 
+    {
+        PPU_CONTROL = 0,
+        PPU_MASK,
+        PPU_STATUS,
+        OAM_ADDRESS,
+        OAM_DATA,
+        PPU_SCROLL,
+        PPU_ADDRESS,
+        PPU_DATA
+    }
+    reg;
 
-    /* PPU memory */
-    uint8_t  patternTable[2][128 * 128];
+    enum ppuControl 
+    {
+        NAMETABLE1             = 0x01,
+        NAMETABLE2             = 0x02,
+        VRAM_ADD_INCREMENT     = 0x04,
+        SPRITE_PATTERN_ADDR    = 0x08,
+        BACKROUND_PATTERN_ADDR = 0x10,
+        SPRITE_SIZE            = 0x20,
+        MASTER_SLAVE_SELECT    = 0x40,
+        GENERATE_VBLANK_NMI    = 0x80
+    }
+    ppuControl;
+
+    enum ppuStatus {
+        SPRITE_OVERFLOW = 0x20,
+        SPRITE_ZEROHIT  = 0x40,
+        VERTICAL_BLANK  = 0x80
+    }
+    ppuStatus;
+
+    /* Internal state */
+    uint8_t  addressLatch, dataBuffer;
+    uint8_t  control, mask, status;
+
+    /* PPU memory, with direct access to CHR data */
+    uint8_t *romCHR;
+    uint8_t  nameTables[4 * 1024];
+    uint8_t  OAMdata[256];
+    uint8_t  paletteTable[32];
+    uint16_t VramAddress, TramAddress;
 
     /* Clock info and helpers */
-    uint64_t clockCount, clockgoal;
     int16_t  cycle, scanline;
+    uint64_t clockCount, clockgoal;
     uint32_t frame;
 
-    GLuint fbufferVAO, fbufferVBO;
-    GLuint texture;
-    Shader fbufferShader;
+    GLuint  fbufferVAO, fbufferVBO;
+    GLuint  texture;
+    Shader  fbufferShader;
+    uint8_t patternTable[2][128 * 128];
 }
 PPU2C02;
 
@@ -30,14 +70,14 @@ extern const uint16_t palette2C03[64];
 
 typedef struct NESrom_struct NESrom;
 
-void ppu_reset     (PPU2C02 * const ppu);
+void ppu_reset     (PPU2C02 * const ppu, NESrom * const rom);
 void ppu_clock     (PPU2C02 * const ppu);
 void ppu_exec      (PPU2C02 * const ppu, uint32_t const tickcount);
 
-uint8_t ppu_read      (PPU2C02 * const ppu, uint16_t address);
-uint8_t ppu_cpu_read  (PPU2C02 * const ppu, uint16_t const address);
-void    ppu_write     (PPU2C02 * const ppu, uint16_t const address);
-void    ppu_cpu_write (PPU2C02 * const ppu, uint16_t const address);
+uint8_t ppu_read        (PPU2C02 * const ppu, uint16_t address);
+uint8_t ppu_cpu_read    (PPU2C02 * const ppu, uint16_t const address);
+void    ppu_write       (PPU2C02 * const ppu, uint16_t const address, uint8_t const data);
+void    ppu_cpu_write   (PPU2C02 * const ppu, uint16_t const address, uint8_t const data);
 
 void ppu_debug          (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight, uint8_t const idx);
-void dump_pattern_table (PPU2C02 * const ppu, NESrom * const rom, uint8_t const i);
+void dump_pattern_table (PPU2C02 * const ppu, uint8_t const i);
