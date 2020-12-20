@@ -54,7 +54,6 @@ inline void app_capture_drop (App * app, char * paths[])
 void app_init(App * app)
 {
     app->window = glfw_setup_window (app->resolution[0], app->resolution[1], app->title);
-    app->scene = (Scene){ .bgColor = { 117, 119, 121} };
 
     /* Initialize graphics and emulation system */
     graphics_init();

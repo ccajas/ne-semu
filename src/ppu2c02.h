@@ -10,15 +10,21 @@ typedef struct PPU2C02_Struct
     /* PPU memory */
     uint8_t  patternTable[2][128 * 128];
 
-    /* Clock info */
+    /* Clock info and helpers */
     uint64_t clockCount, clockgoal;
-    uint16_t cycle, scanline;
+    int16_t  cycle, scanline;
+    uint32_t frame;
 
     GLuint fbufferVAO, fbufferVBO;
     GLuint texture;
     Shader fbufferShader;
 }
 PPU2C02;
+
+/* Shaders used and 2C03/2C05 color palette */
+
+extern const char *ppu_vs_source, *ppu_fs_source;
+extern const uint16_t palette2C03[64];
 
 /* Forward declare ROM */
 

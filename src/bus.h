@@ -98,7 +98,7 @@ inline uint8_t bus_read (Bus * const bus, uint16_t const address)
         if (bus->rom.mapper.cpuReadWrite)
         {
             uint32_t mappedAddress = bus->rom.mapper.cpuReadWrite(&bus->rom.mapper, address);
-            data = bus->rom.prg_data[mappedAddress];
+            data = vc_get (&bus->rom.PRGdata, mappedAddress);
         }
     }
     

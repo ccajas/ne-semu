@@ -60,3 +60,4 @@ roms/
 #unused
 *.c_
 *.h_
+_misc/

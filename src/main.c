@@ -22,6 +22,7 @@ int main (int argc, char** argv)
         .onWindowResize = glfw_cb_window_size,
         .resolution     = { 1280, 720 }
     };
+    app.scene = (Scene){ .bgColor = { 113, 115, 126} };
     app_init (&app);
 
     /* Main update loop */

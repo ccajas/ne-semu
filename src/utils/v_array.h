@@ -4,34 +4,29 @@
 #include <assert.h>
 #include <stdlib.h>
 
-typedef union dfloat32
-{
-    int32_t d;
-    float   f;
-} 
-dfloat32;
+/* Resizable byte array */
 
 struct Varray
 {
-    dfloat32* data;
+    uint8_t * data;
     uint32_t  total;
     uint32_t  capacity;
 };
 
 /* Varray functions */
 
-inline void va_init (struct Varray* const v, uint32_t initialSize) 
+inline void vc_init (struct Varray* const v, uint32_t initialSize) 
 {
-    v->data = malloc (initialSize * sizeof(float));
+    v->data = malloc (initialSize * sizeof(uint8_t));
     v->total = 0;
     v->capacity = initialSize;
 }
 
-inline void va_resize (struct Varray* const v, int const capacity) 
+inline void vc_resize (struct Varray* const v, int const capacity) 
 {
     assert (v->capacity <= 1 << 31);
 
-    dfloat32* newdata = realloc (v->data, capacity * sizeof *newdata);
+    uint8_t* newdata = realloc (v->data, capacity * sizeof *newdata);
     if (newdata) {
         v->data = newdata;
         v->capacity = capacity;
@@ -42,21 +37,21 @@ inline void va_resize (struct Varray* const v, int const capacity)
     }
 }
 
-inline void va_push (struct Varray* const v, dfloat32 const element)
+inline void vc_push (struct Varray* const v, uint8_t const element)
 {
     if (v->total == v->capacity) {
-        va_resize(v, v->capacity * 2);
+        vc_resize(v, v->capacity * 2);
     }
     v->data[v->total++] = element;
 }
 
-inline void va_push_array (struct Varray* const v, dfloat32* elements, uint32_t count, uint32_t start) 
+inline void vc_push_array (struct Varray* const v, uint8_t* elements, uint32_t count, uint32_t start) 
 {
     for (int i = 0; i < count; i++)
-        va_push (v, elements[start + i]);
+        vc_push (v, elements[start + i]);
 }
 
-inline dfloat32 va_get (struct Varray* v, int32_t index) 
+inline uint8_t vc_get (struct Varray* v, int32_t index) 
 {
     if (index >= 0 && index < v->total) {
         return v->data[index];
@@ -64,25 +59,15 @@ inline dfloat32 va_get (struct Varray* v, int32_t index)
     else if(index < 0 && index >= (0 - v->total)) {
         return v->data[v->total + index];
     }
-    return (dfloat32)0.0f;
+    return -1;
 }
 
-inline uint32_t va_total (struct Varray* const v)
+inline uint32_t vc_total (struct Varray* const v)
 {
     return v->total;
 }
 
-inline float va_get_float (struct Varray* const v, int32_t index)
-{
-    return va_get(v, index).f;
-}
-
-inline int32_t va_get_int (struct Varray* const v, int32_t index)
-{
-    return va_get(v, index).d;
-}
-
-inline void va_free (struct Varray* const v)
+inline void vc_free (struct Varray* const v)
 {
     free (v->data);
     v->total = v->capacity = 0;

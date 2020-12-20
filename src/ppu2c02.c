@@ -2,7 +2,7 @@
 #include "rom.h"
 #include "gfx/texture.h"
 
-const char* ppu_vs_source =
+const char * ppu_vs_source =
 
 "#version 330 core\n"
 "layout (location = 0) in vec4 vertex;\n" // <vec2 pos, vec2 tex>
@@ -15,7 +15,7 @@ const char* ppu_vs_source =
 "    TexCoords = vertex.zw;\n"
 "}\n";
  
-const char* ppu_fs_source =
+const char * ppu_fs_source =
 
 "#version 330 core\n"
 "in vec2 TexCoords;\n"
@@ -28,6 +28,14 @@ const char* ppu_fs_source =
 "    float sampled = texture(text, TexCoords).r;\n"
 "    color = vec4(vec3(sampled), 1.0);\n"
 "}\n";
+
+const uint16_t palette2C03[64] = 
+{
+    0x333, 0x014, 0x006, 0x326, 0x403, 0x503, 0x510, 0x420, 0x320, 0x120, 0x031, 0x040, 0x022, 0,     0, 0,
+    0x555, 0x036, 0x027, 0x407, 0x507, 0x704, 0x700, 0x630, 0x430, 0x140, 0x040, 0x053, 0x044, 0,     0, 0,
+    0x777, 0x357, 0x447, 0x637, 0x707, 0x737, 0x740, 0x750, 0x660, 0x360, 0x070, 0x276, 0x077, 0x222, 0, 0,
+    0x777, 0x567, 0x657, 0x757, 0x747, 0x755, 0x764, 0x772, 0x773, 0x572, 0x473, 0x276, 0x467, 0x555, 0, 0
+};
 
 void ppu_create_image (PPU2C02 * const ppu)
 {
@@ -77,6 +85,8 @@ void ppu_create_image (PPU2C02 * const ppu)
 void ppu_reset (PPU2C02 * const ppu)
 {
 	ppu_create_image (ppu);
+
+	ppu->frame = 0;
 /*
 	// setup FBO
 	glGenFramebuffers( 1, &FFrameBuffer );
@@ -181,10 +191,11 @@ void ppu_clock (PPU2C02 * const ppu)
 	{
 		ppu->cycle = 0;
 		ppu->scanline++;
+
 		if (ppu->scanline >= 261)
 		{
 			ppu->scanline = -1;
-			//frame_complete = true;
+			ppu->frame++;
 		}
 	}
 }
@@ -246,45 +257,33 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
 
 void dump_pattern_table (PPU2C02 * const ppu, NESrom * const cart, uint8_t const i) 
 {
-	// Loop through all 16x16 tiles
-	for (uint16_t nTileY = 0; nTileY < 16; nTileY++)
+
+	for (uint16_t tile = 0; tile < 256; tile++)
 	{
-		for (uint16_t nTileX = 0; nTileX < 16; nTileX++)
+		/* Get offset value in memory based on tile position */
+		uint16_t offset = i * 0x1000 + ((tile / 16) << 8) + ((tile & 15) << 4);
+
+		/* Loop through each row of a tile */
+		for (uint16_t row = 0; row < 8; row++)
 		{
-			// Convert the 2D tile coordinate into a 1D offset into the pattern
-			// table memory.
-			uint16_t offset = i * 0x1000 + ((nTileY << 8) + (nTileX << 4));
+			uint8_t tile_lsb = cart->chr_data[offset + row];
+			uint8_t tile_msb = cart->chr_data[offset + row + 8];
 
-			// Now loop through 8 rows of 8 pixels
-			for (uint16_t row = 0; row < 8; row++)
+			/* Loop through a single row of the bit planes and combine values */
+			for (uint16_t col = 0; col < 8; col++)
 			{
-				// For each row, we need to read both bit planes of the character
-				// in order to extract the least significant and most significant 
-				// bits of the 2 bit pixel value. in the CHR ROM, each character
-				// is stored as 64 bits of lsb, followed by 64 bits of msb. This
-				// conveniently means that two corresponding rows are always 8
-				// bytes apart in memory.
-				uint8_t tile_lsb = cart->chr_data[offset + row];
-				uint8_t tile_msb = cart->chr_data[offset + row + 8];
+				/* Get rightmost bit from each byte in memory */
+				uint8_t pixel = (tile_lsb & 1) + ((tile_msb & 1) << 1);
 
-				// Now we have a single row of the two bit planes for the character
-				// we need to iterate through the 8-bit words, combining them to give
-				// us the final pixel index
-				for (uint16_t col = 0; col < 8; col++)
-				{
-					/* Get rightmost bit from each byte in memory */
-					uint8_t pixel = (tile_lsb & 1) + (tile_msb & 1);
+				/* X axis needs to be flipped */
+				uint16_t pX = ((tile & 0xf) << 3) + (7 - col);
+				uint16_t pY = ((tile >> 4) << 3)  + row;
 
-					/* X axis needs to be flipped */
-					uint16_t pX = (nTileX << 3) + (7 - col);
-					uint16_t pY = (nTileY << 3) + row;
+				/* Add to pattern table, with a shade based on pixel value */
+				ppu->patternTable[i][pY * 128 + pX] = pixel * 0x55;
 
-					/* Add to pattern table, with a shade based on pixel value */
-					ppu->patternTable[i][pY * 128 + pX] = pixel * 0x55;
-	
-					tile_lsb >>= 1;
-					tile_msb >>= 1;
-				}
+				tile_lsb >>= 1;
+				tile_msb >>= 1;
 			}
 		}
 	}
