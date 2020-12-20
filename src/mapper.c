@@ -2,60 +2,29 @@
 #include <stdlib.h>
 #include "mapper.h"
 
-Mapper mapper_apply (Mapper * const mapper, uint8_t header[], uint16_t const mapperID)
+Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
 {
-    Mapper mapper1;
-    mapper1.properties = NULL;
+    Mapper mapper;
+    mapper.properties = NULL;
 
-    mapper1.PRGbanks = header[4]; /* Total PRG 16KB banks */
-    mapper1.CHRbanks = header[5]; /* Total CHR 8KB banks */
+    mapper.PRGbanks = header[4]; /* Total PRG 16KB banks */
+    mapper.CHRbanks = header[5]; /* Total CHR 8KB banks */
+
+    printf("Read %d PRG bank(s) and %d CHR bank(s). (%d KiB and %d KiB)\n", mapper.PRGbanks, mapper.CHRbanks, 
+        mapper.PRGbanks * 16, mapper.CHRbanks * 8);
 
     if (mapperID == 0) 
     {
-        mapper1.cpuReadWrite = mapper_NROM_cpu_rw;
-        mapper1.ppuReadWrite = mapper_NROM_ppu_rw;
+        mapper.cpuReadWrite = mapper_NROM_cpu_rw;
+        mapper.ppuReadWrite = mapper_NROM_ppu_rw;
     }
-    else /* No appropriate mapper could be found, default to 0 (NROM), will have unintended effects */
+    else
     {
-        mapper1.cpuReadWrite = mapper_NROM_cpu_rw;
+        /* No appropriate mapper could be found, default to 0 (NROM), may have unintended effects */
+        mapper.cpuReadWrite = mapper_NROM_cpu_rw;
     }
 
-    return mapper1;
-    /*if (!strcmp(filename, "default")) {
-        return;
-    }
-    if (filename != NULL) {
-        strcpy(model->pathName, pathname (filename));
-    }
-
-    model_free (model);
-    model_init (model);
-    model->fileBuf = read_file_short (filename);
-
-    if (model->fileBuf) 
-    {
-	    char modelType[20] = "model_";
-	    strcat(modelType, (char*) GET_FILE_EXT (filename));
-
-        for (const NameFunction* ptr = modelParsers; strcmp(ptr->name, "\0"); ptr++)
-        {
-            if(!strcmp(ptr->name, modelType)) {
-                ptr->parserFunc(model);
-            }
-        }
-        free (model->fileBuf);
-        
-        if (model->meshCount == 0) {
-            model_create_mesh (model, "DefaultMesh", 0);
-        }
-        if (model->materialCount == 0) {
-            model_create_material (model, "DefaultMaterial");
-        }
-        model_load_textures (model);
-    }
-    else {
-        return;
-    }*/
+    return mapper;
 }
 
 uint32_t mapper_NROM_cpu_rw (Mapper * const mapper, uint16_t const address)

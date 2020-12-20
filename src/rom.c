@@ -20,8 +20,7 @@ void rom_load (Bus * const bus, const char* filename)
 
     if (headerString == 0x1a53454e) /* Chars "NES" + 0x1a */
     {
-        printf("Rom valid!\n");
-        printf("(%s)\n", filename);
+        printf("Rom valid! (%s)\n", filename);
         rom_eject (&bus->rom);
 
         rom->valid = 1;
@@ -32,8 +31,7 @@ void rom_load (Bus * const bus, const char* filename)
 
         /* After getting the rom info, the correct mapper can be obtained */
         rom->mirroring = rom->header[6] & 1;
-        rom->mapper    = mapper_apply (&rom->mapper, rom->header, mapperID); // Default is 0
-        printf("Reading...");
+        rom->mapper    = mapper_apply (rom->header, mapperID); // Default is 0
 
         /* Add trainer data if needed */
 
@@ -46,11 +44,8 @@ void rom_load (Bus * const bus, const char* filename)
         vc_push_array (&rom->CHRdata, filebuf, rom->mapper.CHRbanks * 8192,  sizeof(rom->header) + 
             rom->PRGdata.capacity);
 
-        /* Test disassembly output and CHR data dump */
-        cpu_disassemble (bus, 0xc000, 0xc200);
-
-        dump_pattern_table (&bus->ppu, &bus->rom, 0);
-        dump_pattern_table (&bus->ppu, &bus->rom, 1);
+        /* Test disassembly output */
+        cpu_disassemble (bus, 0xc000, 0xc040);
     }
 
     free (filebuf);

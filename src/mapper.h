@@ -17,7 +17,7 @@ typedef struct Mapper_struct
 }
 Mapper;
 
-Mapper mapper_apply (Mapper * const mapper, uint8_t header[], uint16_t const mapperID);
+Mapper mapper_apply (uint8_t header[], uint16_t const mapperID);
 
 /* Concrete model read/write functions for CPU */   
 

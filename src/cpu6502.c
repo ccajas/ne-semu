@@ -939,7 +939,7 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 
 		/* Prefix line with instruction address */
 		/* Read instruction, and get its readable name */
-		uint8_t opcode = bus_read (bus, addr++);
+		uint8_t opcode = bus_read (bus, addr);
         const uint8_t opID = ((opcode & 3) * 0x40) + (opcode >> 2);
         (*optable[opID].op)();
 
@@ -947,14 +947,8 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 		strcat(sInst, textbuf);
 
         to_upper(cpu->lastop);
-        //sprintf(textbuf, "%02x %s ", opcode, cpu->lastop);
-		//strcat(sInst, textbuf);
+        addr++;
 
-		// Get oprands from desired locations, and form the
-		// instruction based upon its addressing mode. These
-		// routines mimmick the actual fetch routine of the
-		// 6502 in order to get accurate data as part of the
-		// instruction
 		if ((*optable[opID].addrmode) == &impl)
 		{
             sprintf(textbuf, ".. ..  %s       {IMP}", cpu->lastop);
