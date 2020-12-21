@@ -93,28 +93,31 @@ void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 	ppu->cycle = 0;
 	ppu->frame = 0;
 	ppu->hiByte = 1;
-	ppu->addrValue = 0x0;
+	ppu->dataBuffer = 0;
+	ppu->VRam = ppu->tmpVRam = 0x0;
 
-	/* Give direct access to rom's CHR data via pointer (read/write) */
-	ppu->romCHR = rom->CHRdata.data;
+	/* Copy the first 8K of CHR data as needed for mapper 0 */
 
-	if (ppu->romCHR)
+	ppu->romCHR    = rom->CHRdata.data;
+	ppu->mirroring = rom->mirroring;
+
+	if (ppu->romCHR && rom->mapperID == 0)
 	{
-        dump_pattern_table (ppu, 0);
-        dump_pattern_table (ppu, 1);
+        copy_pattern_table (ppu, 0);
+        copy_pattern_table (ppu, 1);
 	}
 }
 
-/* Helper functions */
+/* Helper read functions */
 
 inline void ppu_vram_increment (PPU2C02 * const ppu)
 {
-	ppu->addrValue += (ppu->control & 0x4) ? 32 : 1;
+	ppu->VRam += (ppu->control & VRAM_ADD_INCREMENT) ? 32 : 1;
 }
 
 inline void ppu_read_status (PPU2C02 * const ppu, uint8_t * data)
 {
-		/* Combine top 3 bits of register and bottom 3 bits of data buffer */ 
+	/* Combine top 3 bits of register and bottom 3 bits of data buffer */ 
 	*data = (ppu->status & 0xe0) | (ppu->dataBuffer & 0x1f);
 
 	/* Clear vblank */
@@ -132,12 +135,50 @@ inline void ppu_read_data (PPU2C02 * const ppu, uint8_t * data)
 	/* Return data from previous data request (dummy read). Data buffer
 	   is returned in the next request */
 	*data = ppu->dataBuffer;
-	ppu->dataBuffer = ppu_read (ppu, ppu->addrValue);
+	ppu->dataBuffer = ppu_read (ppu, ppu->VRam);
 
 	/* The exception is reading from palette data, return it immediately */
-	if (ppu->addrValue >= 0x3f00)
+	if (ppu->VRam >= 0x3f00)
 		*data = ppu->dataBuffer;
 
+	if (ppu->scanline >= 0 && ppu->scanline < 240 && ppu->cycle < 256)
+	{
+		//IncrementCourseX();
+		//IncrementY();
+	}
+	else {
+		ppu_vram_increment (ppu);
+	}
+}
+
+/* Helper write functions */
+
+inline void ppu_write_control (PPU2C02 * const ppu, const uint8_t data)
+{
+	uint8_t oldNMI = ppu->control & GENERATE_VBLANK_NMI;
+	ppu->control = data;
+	if (!oldNMI && (ppu->control & GENERATE_VBLANK_NMI) && (ppu->status & VERTICAL_BLANK)) 
+	{
+		printf("New vblank NMI\n");
+		ppu->nmi = 1;
+	}
+}
+
+inline void ppu_write_address (PPU2C02 * const ppu, const uint8_t data)
+{
+	if (ppu->hiByte == 1)
+		ppu->tmpVRam = (uint16_t)((data & 0x3f) << 8) | (ppu->tmpVRam & 0x00ff);
+	else {
+		ppu->tmpVRam = (ppu->tmpVRam & 0xff00) | data;
+		ppu->VRam = ppu->tmpVRam;
+	}
+
+	ppu->hiByte = 1 - ppu->hiByte;
+}
+
+inline void ppu_write_data (PPU2C02 * const ppu, const uint8_t data)
+{
+	ppu_write (ppu, ppu->VRam, data);
 	ppu_vram_increment (ppu);
 }
 
@@ -163,36 +204,13 @@ uint8_t ppu_register_read (PPU2C02 * const ppu, uint16_t const address)
 void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data)
 {
 	assert (address <= 0x7);
-	uint8_t oldNMI;
 
 	switch (address)
 	{
-		case PPU_CONTROL:
-    		oldNMI = ppu->control & GENERATE_VBLANK_NMI;
-			ppu->control = data;
-			if (!oldNMI && (ppu->control & GENERATE_VBLANK_NMI) && (ppu->status & VERTICAL_BLANK)) {
-				printf("New vblank NMI\n");
-				ppu->nmi = 1;
-			}
-			break;
-
-		case PPU_MASK:
-			ppu->mask = data;
-			break;
-
-		case PPU_ADDRESS:
-			if (ppu->hiByte == 1)
-				ppu->addrValue = (uint16_t)(data << 8);
-			else
-				ppu->addrValue |= data;
-
-			ppu->hiByte = 1 - ppu->hiByte;
-			break;
-
-		case PPU_DATA:
-			ppu_write (ppu, ppu->addrValue, data);
-			ppu_vram_increment (ppu);
-			break;
+		case PPU_CONTROL: ppu_write_control (ppu, data); break;
+		case PPU_MASK:    ppu->mask = data;              break;
+		case PPU_ADDRESS: ppu_write_address (ppu, data); break;
+		case PPU_DATA:	  ppu_write_data    (ppu, data); break;
 
 		default:
 			/* 0x2 (status) not usable here */
@@ -216,7 +234,18 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 		/* Read from name table data (mirrored every 4KB) 
 		   Todo: handle vertical mirroring mode */
 		address &= 0x0fff;
-		data = ppu->nameTables[address];
+		if (ppu->mirroring == MIRROR_HORIZONTAL)
+		{
+			// Horizontal
+			if (address >= 0 && address <= 0x03ff)
+				data = ppu->nameTables[address & 0x3ff];
+			if (address >= 0x400 && address <= 0x7ff)
+				data = ppu->nameTables[address & 0x3ff];
+			if (address >= 0x800 && address <= 0xbff)
+				data = ppu->nameTables[(address & 0x3ff) + 0x400];
+			if (address >= 0xc00 && address <= 0xfff)
+				data = ppu->nameTables[(address & 0x3ff) + 0x400];
+		}
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
@@ -245,7 +274,18 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 		/* Read from name table data (mirrored every 4KB) 
 		   Todo: handle vertical mirroring mode */
 		address &= 0x0fff;
-		ppu->nameTables[address] = data;
+		if (ppu->mirroring == MIRROR_HORIZONTAL)
+		{
+			// Horizontal
+			if (address >= 0 && address <= 0x3ff)
+				ppu->nameTables[address & 0x3ff] = data;
+			if (address >= 0x400 && address <= 0x7ff)
+				ppu->nameTables[address & 0x3ff] = data;
+			if (address >= 0x800 && address <= 0xbff)
+				ppu->nameTables[(address & 0x3ff) + 0x400] = data;
+			if (address >= 0xc00 && address <= 0xfff)
+				ppu->nameTables[(address & 0x3ff) + 0x400] = data;
+		}
 		printf("Nametable hit %04x %02x\n", address, data);
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
@@ -273,18 +313,11 @@ void ppu_clock (PPU2C02 * const ppu)
 	if (ppu->cycle >= 341)
 	{
 		ppu->cycle = 0;
-		//printf("Scanline %d done \n", ppu->scanline);
 		ppu->scanline++;
 
 		if (ppu->scanline == 0)
 		{
-			ppu->status &= (~VERTICAL_BLANK);
-		}
-
-		if (ppu->scanline >= 1 && ppu->scanline <= 240) /* Visible scanlines */
-		{
-			/* Should scan through OAM here. Also, set pixels */
-			ppu_set_pixel (ppu);
+			//ppu->status &= (~VERTICAL_BLANK);
 		}
 
 		if (ppu->scanline == 241) /* Post visible scanline */
@@ -292,15 +325,14 @@ void ppu_clock (PPU2C02 * const ppu)
 			ppu->status |= VERTICAL_BLANK;
 			ppu->status &= (~SPRITE_ZERO_HIT);
 
+			printf("Vblank NMI: %02x\n", ppu->control & GENERATE_VBLANK_NMI);
+
 			/* Trigger VMI interrupt if needed */
 			if (ppu->control & GENERATE_VBLANK_NMI) {
                	ppu->nmi = 1;
             }
-		}
-
-		if (ppu->scanline == 261) /* Pre-render scanline */
-		{
-
+			/* Debug rendering */
+			ppu_render_bg (ppu);
 		}
 
 		if (ppu->scanline >= 262) /* 262 lines counting line 0 */
@@ -311,8 +343,6 @@ void ppu_clock (PPU2C02 * const ppu)
 			ppu->nmi = 0;
 			ppu->frame++;
 
-			/* Debug rendering */
-			ppu_render_bg (ppu);
 			printf("New frame %d\n", ppu->frame);
 		}
 	}
@@ -366,7 +396,7 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void dump_pattern_table (PPU2C02 * const ppu, uint8_t const i) 
+void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i) 
 {
 	for (uint16_t tile = 0; tile < 256; tile++)
 	{
@@ -401,11 +431,12 @@ void dump_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 
 void ppu_render_bg (PPU2C02 * const ppu)
 {
-	uint8_t bank = 0;
+	//uint8_t bank = 0;
 
 	/* Loop through 960 entries in nametable */
 	for (int y = 0; y < 30; y++) 
 	{
+		//printf ("Ntable ");
 		for (int x = 0; x < 32; x++) 
 		{
 			/* Get offset value in memory based on tile position */
@@ -426,6 +457,8 @@ void ppu_render_bg (PPU2C02 * const ppu)
 						ppu->patternTable[0][((pY + row) * 128) + pX + col];
 				}
 			}
+			//printf("%02x ", tile);
 		}
+		//printf("\n");
 	}
 }

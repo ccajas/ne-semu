@@ -35,16 +35,16 @@ inline void bus_reset (Bus * const bus)
 inline void bus_clock (Bus * const bus)
 {
     cpu_clock (bus);
-    uint8_t oldNMI = bus->ppu.control & GENERATE_VBLANK_NMI;
     for (int i = 0; i < 3; i++)
     {
         ppu_clock (&bus->ppu);
     }
     /* Check if a new NMI flag has been set by PPU */
-    if (!oldNMI && (bus->ppu.control & GENERATE_VBLANK_NMI))
+    if (bus->ppu.nmi)
     {
-        printf("Old NMI: %d, NMI signal at scanline %d\n", oldNMI, bus->ppu.scanline);
+        printf("NMI signal at scanline %d\n", bus->ppu.scanline);
         nmi6502();
+        bus->ppu.nmi = 0;
     }
 }
 

@@ -62,12 +62,13 @@ typedef struct PPU2C02_Struct
     uint8_t  nameTables[4 * 1024];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
-    uint16_t addrValue;
+    uint16_t VRam, tmpVRam;
 
     /* Clock info and helpers */
     int16_t  cycle, scanline;
     uint64_t clockCount, clockgoal;
     uint32_t frame;
+    uint8_t  mirroring;
 
     GLuint  fbufferVAO, fbufferVBO;
     GLuint  texture;
@@ -98,4 +99,4 @@ void    ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t
 void ppu_render_bg      (PPU2C02 * const ppu);
 void ppu_render_sprites (PPU2C02 * const ppu);
 void ppu_debug          (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight, uint8_t const idx);
-void dump_pattern_table (PPU2C02 * const ppu, uint8_t const i);
+void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i);
