@@ -67,6 +67,8 @@ uint8_t penaltyop, penaltyaddr;
 void cpu_reset (CPU6502 * const cpu) 
 {
     cpu->abs_addr = 0xfffc;
+    cpu->clockCount = 0;
+    cpu->clockGoal = 0;
 
 	/* Reset/clear registers */
     cpu->r.pc = (uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
@@ -86,7 +88,7 @@ void cpu_reset (CPU6502 * const cpu)
     cpu->clockticks = 7;
 }
 
-void cpu_clock (CPU6502 * const cpu)
+void cpu_clock (Bus * const bus)
 {
     if (cpu->clockticks == 0)
     {
@@ -103,11 +105,12 @@ void cpu_clock (CPU6502 * const cpu)
 
         to_upper(cpu->lastop);
         cpu->debug = 0;
-
-        printf("$%04x %02x %s (%s) : A:%02x X:%02x Y:%02x P:%02x SP:%02x CYC:%ld\n", 
+/*
+        printf("$%04x %02x %s (%s) : A:%02x X:%02x Y:%02x P:%02x SP:%02x PPU:%03d,%03d CYC:%ld\n", 
             cpu->lastpc, cpu->opcode, cpu->lastop, cpu->lastmode, 
-            cpu->r.a, cpu->r.x, cpu->r.y, cpu->r.status, cpu->r.sp, cpu->clockCount);
-
+            cpu->r.a, cpu->r.x, cpu->r.y, cpu->r.status, cpu->r.sp, 
+            bus->ppu.scanline, bus->ppu.cycle, cpu->clockCount);
+*/
         /* Exec instruction and get no. of cycles */
         penaltyop = 0;
         penaltyaddr = 0;

@@ -42,7 +42,6 @@ inline void bus_clock (Bus * const bus)
     /* Check if a new NMI flag has been set by PPU */
     if (bus->ppu.nmi)
     {
-        printf("NMI signal at scanline %d\n", bus->ppu.scanline);
         nmi6502();
         bus->ppu.nmi = 0;
     }

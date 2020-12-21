@@ -24,15 +24,14 @@ void rom_load (Bus * const bus, const char* filename)
         rom_eject (&bus->rom);
 
         rom->valid = 1;
-        uint8_t mapperID = (rom->header[6] >> 4) | (rom->header[7] & 0xf0);
+        rom->mapperID = (rom->header[6] >> 4) | (rom->header[7] & 0xf0);
 
         /* Copy header and PRG rom from 16 byte offset */
         memcpy (rom->header, filebuf, sizeof(rom->header));
 
         /* After getting the rom info, the correct mapper can be obtained */
         rom->mirroring = rom->header[6] & 1;
-        rom->mapper    = mapper_apply (rom->header, mapperID); // Default is 0
-
+        rom->mapper    = mapper_apply (rom->header, rom->mapperID); // Default is 0
         /* Add trainer data if needed */
 
 
@@ -45,7 +44,7 @@ void rom_load (Bus * const bus, const char* filename)
             rom->PRGdata.capacity);
 
         /* Test disassembly output */
-        cpu_disassemble (bus, 0xc000, 0xc040);
+        cpu_disassemble (bus, 0xc000, 0xc080);
     }
 
     free (filebuf);

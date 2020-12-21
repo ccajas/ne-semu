@@ -5,9 +5,17 @@
 
 typedef struct NESrom_struct
 {
+    enum mirroringType 
+    {
+        MIRROR_HORIZONTAL = 0,
+        MIRROR_VERTICAL   = 1
+    }
+    mirroringType;
+
     uint8_t header[16];
     uint8_t trainer[512];
     uint8_t mirroring;
+    uint8_t mapperID;
     uint8_t valid;
 
     /* Dynamic arrays for PRG and CHR data */

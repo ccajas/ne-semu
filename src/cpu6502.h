@@ -33,7 +33,7 @@ struct Instruction
 };
 
 /* Forward declaration */
-typedef struct Bus_struct Bus;
+typedef struct Bus_struct     Bus;
 
 #define FLAG_CARRY     0x01
 #define FLAG_ZERO      0x02
@@ -47,6 +47,7 @@ typedef struct Bus_struct Bus;
 #define BASE_STACK     0x100
 
 void cpu_reset       (CPU6502 * const cpu);
-void cpu_clock       (CPU6502 * const cpu);
+void cpu_clock       (Bus     * const bus);
 void cpu_exec        (CPU6502 * const cpu, uint32_t const tickcount);
 void cpu_disassemble (Bus     * const bus, uint16_t const start, uint16_t const end);
+void nmi6502();
