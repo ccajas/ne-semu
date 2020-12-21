@@ -22,7 +22,8 @@ const char * ppu_fs_source =
 
 "#version 110\n"
 "varying vec2 TexCoords;\n"
-"uniform sampler2D text;\n"
+"uniform sampler1D colorPalette;\n"
+"uniform sampler2D indexed;\n"
 "uniform vec3 textColor;\n"
 
 "vec3 applyVignette(vec3 color)\n"
@@ -42,7 +43,7 @@ const char * ppu_fs_source =
 "void main()\n"
 "{\n"
 "    vec3 tint = vec3(113, 115, 126) / 127.0;\n"
-"    float sampled = texture2D(text, TexCoords).r;\n"
+"    float sampled = texture2D(indexed, TexCoords).r;\n"
 "    vec3 vgColor = applyVignette(vec3(sampled));\n"
 "    gl_FragColor = vec4(vec3(sampled) * tint, 1.0);\n"
 "}\n";
@@ -156,11 +157,13 @@ inline void ppu_write_control (PPU2C02 * const ppu, const uint8_t data)
 {
 	uint8_t oldNMI = ppu->control & GENERATE_VBLANK_NMI;
 	ppu->control = data;
-	if (!oldNMI && (ppu->control & GENERATE_VBLANK_NMI) && (ppu->status & VERTICAL_BLANK)) 
-	{
-		printf("New vblank NMI\n");
+	ppu->tmpVRam ^= (ppu->control & NAMETABLE_1);
+	ppu->tmpVRam ^= (ppu->control & NAMETABLE_2);
+
+	if(!(ppu->status & VERTICAL_BLANK))
+		ppu->nmi = 0;
+	else if (oldNMI && (ppu->status & VERTICAL_BLANK))
 		ppu->nmi = 1;
-	}
 }
 
 inline void ppu_write_address (PPU2C02 * const ppu, const uint8_t data)
@@ -235,15 +238,25 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 		address &= 0x0fff;
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
-			// Horizontal
 			if (address >= 0 && address <= 0x03ff)
-				data = ppu->nameTables[address & 0x3ff];
+				data = ppu->nameTables [0][address & 0x3ff];
 			if (address >= 0x400 && address <= 0x7ff)
-				data = ppu->nameTables[address & 0x3ff];
+				data = ppu->nameTables [0][address & 0x3ff];
 			if (address >= 0x800 && address <= 0xbff)
-				data = ppu->nameTables[(address & 0x3ff) + 0x400];
+				data = ppu->nameTables [1][address & 0x3ff];
 			if (address >= 0xc00 && address <= 0xfff)
-				data = ppu->nameTables[(address & 0x3ff) + 0x400];
+				data = ppu->nameTables [1][address & 0x3ff];
+		}
+		if (ppu->mirroring == MIRROR_VERTICAL)
+		{
+			if (address >= 0 && address <= 0x03ff)
+				data = ppu->nameTables [0][address & 0x3ff];
+			if (address >= 0x400 && address <= 0x7ff)
+				data = ppu->nameTables [1][address & 0x3ff];
+			if (address >= 0x800 && address <= 0xbff)
+				data = ppu->nameTables [0][address & 0x3ff];
+			if (address >= 0xc00 && address <= 0xfff)
+				data = ppu->nameTables [1][address & 0x3ff];
 		}
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
@@ -274,15 +287,25 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 		address &= 0x0fff;
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
-			// Horizontal
 			if (address >= 0 && address <= 0x3ff)
-				ppu->nameTables[address & 0x3ff] = data;
+				ppu->nameTables [0][address & 0x3ff] = data;
 			if (address >= 0x400 && address <= 0x7ff)
-				ppu->nameTables[address & 0x3ff] = data;
+				ppu->nameTables [0][address & 0x3ff] = data;
 			if (address >= 0x800 && address <= 0xbff)
-				ppu->nameTables[(address & 0x3ff) + 0x400] = data;
+				ppu->nameTables [1][address & 0x3ff] = data;
 			if (address >= 0xc00 && address <= 0xfff)
-				ppu->nameTables[(address & 0x3ff) + 0x400] = data;
+				ppu->nameTables [1][address & 0x3ff] = data;
+		}
+		if (ppu->mirroring == MIRROR_VERTICAL)
+		{
+			if (address >= 0 && address <= 0x3ff)
+				ppu->nameTables [0][address & 0x3ff] = data;
+			if (address >= 0x400 && address <= 0x7ff)
+				ppu->nameTables [1][address & 0x3ff] = data;
+			if (address >= 0x800 && address <= 0xbff)
+				ppu->nameTables [0][address & 0x3ff] = data;
+			if (address >= 0xc00 && address <= 0xfff)
+				ppu->nameTables [1][address & 0x3ff] = data;
 		}
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
@@ -299,11 +322,43 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 
 void ppu_set_pixel (PPU2C02 * const ppu)
 {
+	/* Draw some test noise */
+	uint8_t x = (uint8_t)ppu->cycle;
+	uint8_t y = (uint8_t)ppu->scanline - 1;
 
+	uint8_t renderbg = ((ppu->control & BACKROUND_PATTERN_ADDR) == BACKROUND_PATTERN_ADDR) ? 0xff : 0;
+	ppu->frameBuffer[y * 256 + x] = random() & 0xff;
 }
 
 void ppu_clock (PPU2C02 * const ppu)
 {
+	if (ppu->scanline == 0 && ppu->cycle == 1)
+	{
+		ppu->status &= (~VERTICAL_BLANK);
+		ppu->status &= (~SPRITE_ZERO_HIT);
+		ppu->nmi = 0;
+	}
+
+	if (ppu->scanline >= 1 && ppu->scanline <= 240)
+	{
+		if (ppu->cycle < 256)
+			ppu_set_pixel (ppu);
+	}		
+
+	if (ppu->scanline == 241 && ppu->cycle == 1) /* Post visible scanline */
+	{
+		ppu->status |= VERTICAL_BLANK;
+		ppu->status &= (~SPRITE_ZERO_HIT);
+
+		/* Trigger VMI interrupt if needed */
+		if (ppu->control & GENERATE_VBLANK_NMI) {
+			ppu->nmi = 1;
+		}
+		/* Debug rendering */
+		//ppu_set_bg (ppu);
+	}
+
+	/* General scan/cycle counting */
 	ppu->clockCount++;
 	ppu->cycle++;
 
@@ -312,33 +367,10 @@ void ppu_clock (PPU2C02 * const ppu)
 		ppu->cycle = 0;
 		ppu->scanline++;
 
-		if (ppu->scanline == 0)
+		if (ppu->scanline >= 262) /* This line is excluded, go straight to 0 */
 		{
-			//ppu->status &= (~VERTICAL_BLANK);
-		}
-
-		if (ppu->scanline == 241) /* Post visible scanline */
-		{
-			ppu->status |= VERTICAL_BLANK;
-			ppu->status &= (~SPRITE_ZERO_HIT);
-
-			/* Trigger VMI interrupt if needed */
-			if (ppu->control & GENERATE_VBLANK_NMI) {
-               	ppu->nmi = 1;
-            }
-			/* Debug rendering */
-			ppu_render_bg (ppu);
-		}
-
-		if (ppu->scanline >= 262) /* 262 lines counting line 0 */
-		{
-			ppu->status &= (~VERTICAL_BLANK);
-			ppu->status &= (~SPRITE_ZERO_HIT);
 			ppu->scanline = 0;
-			ppu->nmi = 0;
 			ppu->frame++;
-
-			//printf("New frame %d\n", ppu->frame);
 		}
 	}
 }
@@ -451,7 +483,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 	}
 }
 
-void ppu_render_bg (PPU2C02 * const ppu)
+void ppu_set_bg (PPU2C02 * const ppu)
 {
 	uint16_t table = (ppu->control & BACKROUND_PATTERN_ADDR) ? 1 : 0;
 
@@ -462,7 +494,7 @@ void ppu_render_bg (PPU2C02 * const ppu)
 		for (int x = 0; x < 32; x++) 
 		{
 			/* Get offset value in memory based on tile position */
-			uint8_t tile = ppu->nameTables[(y * 32) + x];
+			uint8_t tile = ppu_read(ppu, (y * 32 + x) | 0x2000);
 			uint8_t xPos = x * 8;
 			uint8_t yPos = y * 8;
 
