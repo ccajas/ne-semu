@@ -111,8 +111,9 @@ void draw_debug (GLFWwindow * window, Timer * timer)
     text_draw_raised (textbuf, 772.0f, height - 80.0f, 0.45f);
 
     /* Debug CPU and RAM */
-    sprintf(textbuf, "PC: $%04x %02x %s Ticks: %d, Cycles: %ld", 
-        cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockticks, cpu->clockCount);
+    sprintf(textbuf, "PC: $%04x %02x %s Ticks: %d, Cycles: %ld, s: %.3f", 
+        cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockticks, cpu->clockCount,
+        (float)(NES.ppu.frame / 60.0f));
     text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.45f);
 
     /* CPU registers and storage locations for program/vars */

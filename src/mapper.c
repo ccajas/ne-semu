@@ -10,7 +10,8 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
     mapper.PRGbanks = header[4]; /* Total PRG 16KB banks */
     mapper.CHRbanks = header[5]; /* Total CHR 8KB banks */
 
-    printf("Read %d PRG bank(s) and %d CHR bank(s). (%d KB and %d KB)\n", mapper.PRGbanks, mapper.CHRbanks, 
+    printf("Mapper type %d, read %d PRG bank(s) and %d CHR bank(s). (%d KB and %d KB)\n", mapperID, 
+        mapper.PRGbanks, mapper.CHRbanks, 
         mapper.PRGbanks * 16, mapper.CHRbanks * 8);
 
     if (mapperID == 0) 

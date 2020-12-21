@@ -4,6 +4,7 @@
 typedef struct Timer_struct
 {
     double   currentTime, previousTime;
+    double   residualTime;
     float    frameTime;
     uint64_t frameCount;
 }
