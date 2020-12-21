@@ -15,14 +15,14 @@ const unsigned char defaultColors[8][4] =
     {   0,   0,   0, 255 }  /* Emissive */
 };
 
-void texture_init (uint32_t const textureID, GLenum wrapParam, GLenum minFilter)
+void texture_init (uint32_t const textureID, GLenum wrapParam, GLenum filter)
 {
     glBindTexture(GL_TEXTURE_2D, textureID);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapParam);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapParam);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
 }
 
 uint32_t texture_new_blank (

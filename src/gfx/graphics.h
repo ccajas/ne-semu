@@ -43,20 +43,13 @@ inline void draw_scene (GLFWwindow * window, Scene * scene)
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
 {
     char textbuf[256];
-    const float size = 0.5f;
+    const float size = 0.45f;
 
     text_draw_raised ("STATUS", x, y, size);
 
-    sprintf (textbuf, "PC: $%04x", cpu->r.pc);
-    text_draw_raised (textbuf, x , y - 24, size);
-    sprintf (textbuf, "A: $%02x [%d]", cpu->r.a, cpu->r.a);
-    text_draw_raised (textbuf, x , y - 48, size);
-    sprintf (textbuf, "X: $%02x [%d]", cpu->r.x, cpu->r.x);
-    text_draw_raised (textbuf, x , y - 72, size);
-    sprintf (textbuf, "Y: $%02x [%d]", cpu->r.y, cpu->r.y);
-    text_draw_raised (textbuf, x , y - 96, size);
-    sprintf (textbuf, "Stack P: $%04x", cpu->r.sp);
-    text_draw_raised (textbuf, x , y - 120, size);
+    sprintf (textbuf, "PC: $%04x A:$%02x [%03d] X:$%02x [%03d] Y:$%02x [%03d], SP:$%04x", cpu->r.pc, 
+        cpu->r.a, cpu->r.a, cpu->r.x, cpu->r.x, cpu->r.y, cpu->r.y, cpu->r.sp);
+    text_draw_raised (textbuf, x , y - 16, size);
 }
 
 inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_t cols, int16_t const start)
@@ -82,10 +75,15 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
     }
 }
 
-inline void draw_debug_ppu (int32_t const x, int32_t const y)
+void draw_debug_ppu (int32_t const width, int32_t const height)
 {
-    ppu_debug (&NES.ppu, x, y, 0);
-    ppu_debug (&NES.ppu, x, y, 1);
+	/* Test draw, use PPU shader */
+    glUseProgram(NES.ppu.fbufferShader.program);
+    mat4x4 p;
+    mat4x4_ortho(p, 0, width, 0, height, 0, 0.1f);
+    glUniformMatrix4fv (glGetUniformLocation(NES.ppu.fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
+
+    ppu_debug (&NES.ppu, width, height);
 }
 
 void draw_debug (GLFWwindow * window, Timer * timer)
@@ -95,29 +93,32 @@ void draw_debug (GLFWwindow * window, Timer * timer)
     int32_t width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
+    /* Graphical PPU debug */
+    draw_debug_ppu(width, height);
+
+    /* Setup text */
     char textbuf[256];     
     text_begin (width, height);
     const GLubyte* vendor = glGetString(GL_VENDOR); // Returns the vendor
     const GLubyte* renderer = glGetString(GL_RENDERER); // Returns a hint to the model
 
+    /* Vendor and framerate info */
+    sprintf(textbuf, "Vendor: %s", vendor);
+    text_draw_raised (textbuf, 772.0f, height - 16.0f, 0.45f);
+    sprintf(textbuf, "Renderer: %s", renderer);
+    text_draw_raised (textbuf, 772.0f, height - 32.0f, 0.45f);
+    sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
+    text_draw_raised (textbuf, 772.0f, height - 80.0f, 0.45f);
+
     /* Debug CPU and RAM */
     sprintf(textbuf, "PC: $%04x %02x %s Ticks: %d, Cycles: %ld", 
         cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockticks, cpu->clockCount);
-    text_draw_white (textbuf, 12.0f, 64.0f, 0.6f);
-
-    /* Vendor and framerate info */
-    sprintf(textbuf, "Vendor: %s Renderer: %s", vendor, renderer);
-    text_draw_white (textbuf, 12.0f, 40.0f, 0.6f);
-    sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
-    text_draw_white (textbuf, 12.0f, 16.0f, 0.6f);
+    text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.45f);
 
     /* CPU registers and storage locations for program/vars */
-    draw_debug_cpu(width - 240, height - 24);
-    draw_debug_ram(12, height - 24,  16, 16, 0x0);
-    draw_debug_ram(12, height - 336, 16, 16, 0x8000);
-
-    /* Graphical PPU debug */
-    draw_debug_ppu(width, height);
+    draw_debug_cpu(772.0f, height - 112.0f);
+    //draw_debug_ram(12, height - 24,  16, 16, 0x0);
+    //draw_debug_ram(12, height - 336, 16, 16, 0x8000);
 }
 
 #endif

@@ -70,11 +70,10 @@ typedef struct PPU2C02_Struct
     uint32_t frame;
     uint8_t  mirroring;
 
-    GLuint  fbufferVAO, fbufferVBO;
-    GLuint  texture;
+    GLuint  fbufferTexture, pTableTexture;
     Shader  fbufferShader;
     uint8_t patternTable[2][128 * 128];
-    uint8_t frameBuffer[256 * 256];
+    uint8_t frameBuffer[256 * 240];
 }
 PPU2C02;
 
@@ -82,6 +81,12 @@ PPU2C02;
 
 extern const char *ppu_vs_source, *ppu_fs_source;
 extern const uint16_t palette2C03[64];
+
+/* For drawing quads (lazy loading) */
+
+extern uint32_t quadVAO;
+extern uint32_t quadVBO;
+extern float    quadVertices[];
 
 /* Forward declare ROM */
 
@@ -98,5 +103,5 @@ void    ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t
 
 void ppu_render_bg      (PPU2C02 * const ppu);
 void ppu_render_sprites (PPU2C02 * const ppu);
-void ppu_debug          (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight, uint8_t const idx);
+void ppu_debug          (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight);
 void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i);
