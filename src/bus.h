@@ -34,10 +34,17 @@ inline void bus_reset (Bus * const bus)
 
 inline void bus_clock (Bus * const bus)
 {
-    cpu_clock (&bus->cpu);
+    cpu_clock (bus);
+    uint8_t oldNMI = bus->ppu.control & GENERATE_VBLANK_NMI;
     for (int i = 0; i < 3; i++)
     {
         ppu_clock (&bus->ppu);
+    }
+    /* Check if a new NMI flag has been set by PPU */
+    if (!oldNMI && (bus->ppu.control & GENERATE_VBLANK_NMI))
+    {
+        printf("Old NMI: %d, NMI signal at scanline %d\n", oldNMI, bus->ppu.scanline);
+        nmi6502();
     }
 }
 
@@ -84,8 +91,8 @@ inline uint8_t bus_read (Bus * const bus, uint16_t const address)
 	/* Read from PPU, mirrored every 8 bytes */
     else if (address >= 0x2000 && address < 0x4000)
 	{
-        printf("Attempting to read from PPU at register %x, pc:%04x\n", address & 0x7, bus->cpu.lastpc);
-		ppu_cpu_read (&bus->ppu, address & 0x7);
+        //printf("Attempting to read from PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data);
+		data = ppu_register_read (&bus->ppu, address & 0x7);
 	}
     /* Read from APU and I/O */
     else if (address >= 0x4000 && address < 0x4020)
@@ -105,18 +112,18 @@ inline uint8_t bus_read (Bus * const bus, uint16_t const address)
     return data;
 }
 
-inline void bus_write (Bus * const bus, uint16_t const addr, uint8_t const data) 
+inline void bus_write (Bus * const bus, uint16_t const address, uint8_t const data) 
 {
     /* Read from system ram 8kB range, write to 2kB mirror */
     //printf("Data write at addr: %04x\n", addr);
-	if (addr >= 0 && addr < 0x2000)
+	if (address >= 0 && address < 0x2000)
     {
-		bus->ram[addr & 0x7ff] = data;
+		bus->ram[address & 0x7ff] = data;
     }
-	else if (addr >= 0x2000 && addr <= 0x3fff)
+	/* PPU Address range, mirrored every 8 */
+	else if (address >= 0x2000 && address <= 0x3fff)
 	{
-		/* PPU Address range, mirrored every 8 */
-		//ppu_write (addr & 0x7, data);
-        printf("Attempting to write to PPU at register %x, pc:%04x\n", addr & 0x7, bus->cpu.lastpc);
+        //printf("Attempting to write to PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data);
+		ppu_register_write (&bus->ppu, address & 0x7, data);
 	}
 }

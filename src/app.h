@@ -180,7 +180,7 @@ inline void app_update (App * app)
     /* Update emulator */
     if (app->emulationRun)
     {
-        bus_exec (&NES, 100);
+        bus_exec (&NES, 10000);
     }
 
     /* Update window title */

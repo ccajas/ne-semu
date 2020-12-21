@@ -9,7 +9,6 @@ typedef struct Camera_struct Camera;
 typedef struct Scene_struct
 {
     uint8_t bgColor[3];
-    Shader  mainShader, skyboxShader;
 }
 Scene;
 
@@ -24,7 +23,7 @@ inline void graphics_init()
 
 	/* Init text and framebuffer objects */
 	text_init();
-	//framebuffer_init_ms (1280, 720, 8);
+
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
@@ -37,6 +36,8 @@ inline void draw_scene (GLFWwindow * window, Scene * scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    /* Render the PPU framebuffer here */
 }
 
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
@@ -102,18 +103,18 @@ void draw_debug (GLFWwindow * window, Timer * timer)
     /* Debug CPU and RAM */
     sprintf(textbuf, "PC: $%04x %02x %s Ticks: %d, Cycles: %ld", 
         cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockticks, cpu->clockCount);
-    text_draw_white (textbuf, 16.0f, 64.0f, 0.6f);
+    text_draw_white (textbuf, 12.0f, 64.0f, 0.6f);
 
     /* Vendor and framerate info */
     sprintf(textbuf, "Vendor: %s Renderer: %s", vendor, renderer);
-    text_draw_white (textbuf, 16.0f, 40.0f, 0.6f);
+    text_draw_white (textbuf, 12.0f, 40.0f, 0.6f);
     sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
-    text_draw_white (textbuf, 16.0f, 16.0f, 0.6f);
+    text_draw_white (textbuf, 12.0f, 16.0f, 0.6f);
 
     /* CPU registers and storage locations for program/vars */
     draw_debug_cpu(width - 240, height - 24);
-    draw_debug_ram(16, height - 24,  16, 16, 0x0);
-    draw_debug_ram(16, height - 336, 16, 16, 0x8000);
+    draw_debug_ram(12, height - 24,  16, 16, 0x0);
+    draw_debug_ram(12, height - 336, 16, 16, 0x8000);
 
     /* Graphical PPU debug */
     draw_debug_ppu(width, height);
