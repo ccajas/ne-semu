@@ -58,7 +58,7 @@ typedef struct PPU2C02_Struct
 
     /* PPU memory, with direct access to CHR data */
     uint8_t *romCHR;
-    uint8_t  patternTables[2 * 4096];
+    uint8_t  patternTables[2][128 * 128];
     uint8_t  nameTables[4 * 1024];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
@@ -70,9 +70,8 @@ typedef struct PPU2C02_Struct
     uint32_t frame;
     uint8_t  mirroring;
 
-    GLuint  fbufferTexture, pTableTexture;
+    GLuint  fbufferTexture, pTableTexture, paletteTexture;
     Shader  fbufferShader;
-    uint8_t patternTable[2][128 * 128];
     uint8_t frameBuffer[256 * 240];
 }
 PPU2C02;

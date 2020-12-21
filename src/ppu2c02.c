@@ -4,7 +4,7 @@
 
 const char * ppu_vs_source =
 
-"#version 330 core\n"
+"#version 330\n"
 "layout (location = 0) in vec4 vertex;\n" // <vec2 pos, vec2 tex>
 "layout (location = 1) in vec2 texture;"
 "out vec2 TexCoords;\n"
@@ -20,17 +20,31 @@ const char * ppu_vs_source =
  
 const char * ppu_fs_source =
 
-"#version 330 core\n"
-"in vec2 TexCoords;\n"
-"out vec4 color;\n"
+"#version 110\n"
+"varying vec2 TexCoords;\n"
 "uniform sampler2D text;\n"
 "uniform vec3 textColor;\n"
-"uniform vec3 tint = vec3(113, 115, 126) / 127.0f;\n"
+
+"vec3 applyVignette(vec3 color)\n"
+"{\n"
+"    vec2 position = (TexCoords.xy / 256.0) - vec2(0.5);\n"           
+"    float dist = length(position);\n"
+
+"    float radius = 0.5;\n"
+"    float softness = 0.02;\n"
+"    float vignette = smoothstep(radius, radius - softness, dist);\n"
+
+"    color.rgb = color.rgb - (1.0 - vignette);\n"
+
+"    return color;\n"
+"}\n"
 
 "void main()\n"
 "{\n"
-"    float sampled = texture(text, TexCoords).r;\n"
-"    color = vec4(vec3(sampled) * tint, 1.0);\n"
+"    vec3 tint = vec3(113, 115, 126) / 127.0;\n"
+"    float sampled = texture2D(text, TexCoords).r;\n"
+"    vec3 vgColor = applyVignette(vec3(sampled));\n"
+"    gl_FragColor = vec4(vec3(sampled) * tint, 1.0);\n"
 "}\n";
 
 const uint16_t palette2C03[64] = 
@@ -46,14 +60,25 @@ void ppu_create_image (PPU2C02 * const ppu)
 	/* Create shader */
 	ppu->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
 
-    /* Disable byte-alignment restriction */
-    //glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	/* Disable byte-alignment restriction */
+	//glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    texture_create (&ppu->fbufferTexture);
-    texture_init (ppu->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	/* Create textures */
+	texture_create (&ppu->fbufferTexture);
+	texture_init (ppu->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
 
-    glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, 256, 240, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
-    glBindTexture (GL_TEXTURE_2D, 0);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, 256, 240, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+
+	texture_create (&ppu->pTableTexture);
+	texture_init (ppu->pTableTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, 128, 128, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+
+	/* Create palette texture */
+	texture_create (&ppu->paletteTexture);
+	texture_init (ppu->paletteTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 64, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);	
+
+	glBindTexture (GL_TEXTURE_2D, 0);
 }
 
 void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
@@ -365,11 +390,28 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
 
     glActiveTexture (GL_TEXTURE0);
 
-    /* Set texture */
+    /* Draw framebuffer */
     glBindTexture (GL_TEXTURE_2D, ppu->fbufferTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 256, 240, 0, GL_RED, GL_UNSIGNED_BYTE, ppu->frameBuffer);
+	draw_lazy_quad();
 
-	/* Render quad */
+    /* Draw pattern tables */
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 768, 0, 0);
+    mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(ppu->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glBindTexture (GL_TEXTURE_2D, ppu->pTableTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 128, 128, 0, GL_RED, GL_UNSIGNED_BYTE, ppu->patternTables[0]);
+	draw_lazy_quad();
+
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 1024, 0, 0);
+    mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(ppu->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glBindTexture (GL_TEXTURE_2D, ppu->pTableTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 128, 128, 0, GL_RED, GL_UNSIGNED_BYTE, ppu->patternTables[1]);
 	draw_lazy_quad();
 
 	/* Finish */
@@ -400,7 +442,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 				uint16_t pY = ((tile >> 4) << 3)  + row;
 
 				/* Add to pattern table, with a shade based on pixel value */
-				ppu->patternTable[i][pY * 128 + pX] = pixel * 0x55;
+				ppu->patternTables[i][pY * 128 + pX] = pixel * 0x55;
 
 				tile_lsb >>= 1;
 				tile_msb >>= 1;
@@ -411,7 +453,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 
 void ppu_render_bg (PPU2C02 * const ppu)
 {
-	uint16_t offset = (ppu->control & BACKROUND_PATTERN_ADDR) ? 0x1000 : 0;
+	uint16_t table = (ppu->control & BACKROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Loop through 960 entries in nametable */
 	for (int y = 0; y < 30; y++) 
@@ -434,7 +476,7 @@ void ppu_render_bg (PPU2C02 * const ppu)
 				for (uint16_t col = 0; col < 8; col++)
 				{
 					ppu->frameBuffer[((yPos + row) * 256) + (xPos + col)] = 
-						ppu->patternTable[0][((pY + row) * 128) + pX + col];
+						ppu->patternTables[table][((pY + row) * 128) + pX + col];
 				}
 			}
 			//printf("%02x ", tile);
