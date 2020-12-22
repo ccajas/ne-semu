@@ -306,9 +306,6 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	{
 		/* Write to nametable data (mirrored every 4KB) */
 		address &= 0x0fff;
-		if ((address & 0x3ff) >= 0x3c0) {
-			printf("Attribute table write %02x to %04x\n", data, address);
-		}
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
 			if (address >= 0 && address <= 0x3ff)
@@ -592,7 +589,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 
 void ppu_set_bg (PPU2C02 * const ppu)
 {
-	uint16_t table = (ppu->control.BACKROUND_PATTERN_ADDR) ? 1 : 0;
+	uint16_t pTable = (ppu->control.BACKROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Loop through 960 entries in nametable */
 	for (int y = 0; y < 30; y++) 
@@ -601,7 +598,8 @@ void ppu_set_bg (PPU2C02 * const ppu)
 		for (int x = 0; x < 32; x++) 
 		{
 			/* Get offset value in memory based on tile position */
-			uint8_t tile = ppu_read(ppu, (y * 32 + x) | 0x2000);
+			uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
+			uint8_t tile = ppu_read(ppu, (y * 32 + x) + (0x2000 | baseTable * 0x400));
 			uint8_t xPos = x * 8;
 			uint8_t yPos = y * 8;
 
@@ -610,27 +608,23 @@ void ppu_set_bg (PPU2C02 * const ppu)
 			uint16_t pY = (tile >> 4) << 3;
 
 			uint16_t attrTableIndex = (y / 4) * 8 + x / 4;
-			
-    		uint8_t attrByte = ppu->nameTables[0][0x3c0 + attrTableIndex];
-			if (attrByte > 0)
-				printf("Attribute byte for tile %d, %d: %02x %02x\n", x, y, attrByte, 0x3c0 + attrTableIndex);
+    		uint8_t  attrByte = ppu->nameTables[0][0x3c0 + attrTableIndex];
+			uint8_t  palette = attrByte >> ((y % 4 / 2) << 2 | (x % 4 / 2) << 1) & 3;
 
 			for (uint16_t row = 0; row < 8; row++)
 			{
 				/* Loop through a single row of the bit planes and combine values */
 				for (uint16_t col = 0; col < 8; col++)
 				{
-					uint16_t p = (((yPos + row) * 256) + (xPos + col));
-					uint8_t  index = ppu->patternTables[table][((pY + row) * 128) + pX + col] / 0x55;
-					uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (ppu->palette << 2) + index) & 0x3f];
+					uint16_t p = ((yPos + row) << 8) + (xPos + col);
+					uint8_t  index = ppu->patternTables[pTable][((pY + row) * 128) + pX + col] / 0x55;
+					uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 
 					ppu->frameBuffer[p * 3]   = (uint8_t)(palColor >> 8) << 5;
 					ppu->frameBuffer[p * 3+1] = (uint8_t)(palColor >> 4) << 5;
 					ppu->frameBuffer[p * 3+2] = (uint8_t)(palColor << 5);
 				}
 			}
-			//printf("%02x ", tile);
 		}
-		//printf("\n");
 	}
 }
