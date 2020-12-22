@@ -24,7 +24,6 @@ void glfw_cb_scroll (GLFWwindow * window, double xoffset, double yoffset)
 void glfw_cb_drop (GLFWwindow * window, int count, char * paths[])
 {
     App* app = glfwGetWindowUserPointer (window);
-    printf("Dropped!\n");
     app_capture_drop (app, paths);
 }
 
@@ -50,7 +49,7 @@ inline void create_new_window (
     }
 }*/
 
-inline GLFWwindow *glfw_setup_window(int width, int height, const char *title)
+GLFWwindow *glfw_setup_window(int width, int height, const char *title)
 {
     GLFWwindow* window;
 

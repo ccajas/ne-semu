@@ -172,7 +172,7 @@ inline void app_update (App * app)
 
     /* Check for closing window */
     if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_ESCAPE) || 
-        glfwWindowShouldClose(app->window)) 
+        glfwWindowShouldClose(app->window))
     {
         app->running = 0;
     }
@@ -190,7 +190,7 @@ inline void app_update (App * app)
     /* Update emulator */
     if (app->emulationRun)
     {
-        bus_exec (&NES, 23904);
+        bus_exec (&NES, 23863);
     }
 
     /* Update window title */

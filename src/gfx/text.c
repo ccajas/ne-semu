@@ -41,7 +41,12 @@ void text_init()
         printf("Init freetype \n");
     }
 
-    char fontStack[][128] = {
+    const char* homeDir = getenv("HOME");
+    char textbuf[256] = "";
+    sprintf(textbuf, "%s/.local/share/fonts/monogram.ttf", homeDir);
+    printf("%s\n", textbuf);
+
+    char fontStack[][256] = {
         "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/TTF/OpenSans-Regular.ttf",
         "/usr/share/fonts/opentype/firacode/FiraCode-Regular.otf",
