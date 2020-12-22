@@ -18,42 +18,71 @@ typedef struct PPU2C02_Struct
     }
     ppuRegisters;
 
-    enum ppuControl 
+    union
     {
-        NAMETABLE_1            = 0x01,
-        NAMETABLE_2            = 0x02,
-        VRAM_ADD_INCREMENT     = 0x04,
-        SPRITE_PATTERN_ADDR    = 0x08,
-        BACKROUND_PATTERN_ADDR = 0x10,
-        SPRITE_SIZE            = 0x20,
-        MASTER_SLAVE_SELECT    = 0x40,
-        GENERATE_VBLANK_NMI    = 0x80
+        struct
+        {
+            uint8_t NAMETABLE_1            : 1;
+            uint8_t NAMETABLE_2            : 1;
+            uint8_t VRAM_ADD_INCREMENT     : 1;
+            uint8_t SPRITE_PATTERN_ADDR    : 1;
+            uint8_t BACKROUND_PATTERN_ADDR : 1;
+            uint8_t SPRITE_SIZE            : 1;
+            uint8_t MASTER_SLAVE_SELECT    : 1;
+            uint8_t ENABLE_NMI             : 1;
+        };
+        uint8_t flags;
     }
-    ppuControl;
+    control;
 
-    enum ppuMask {
-        GRAYSCALE           = 0x01,
-        RENDER_BG_LEFT      = 0x02,
-        RENDER_SPRITES_LEFT = 0x04,
-        RENDER_BG           = 0x08,
-        RENDER_SPRITES      = 0x10,
-        ENHANCE_RED         = 0x20,
-        ENHANCE_GREEN       = 0x40,
-        ENHANCE_BLUE        = 0x80
-
+    union
+    {
+        struct
+        {
+            uint8_t GRAYSCALE           : 1;
+            uint8_t RENDER_BG_LEFT      : 1;
+            uint8_t RENDER_SPRITES_LEFT : 1;
+            uint8_t RENDER_BG           : 1;
+            uint8_t RENDER_SPRITES      : 1;
+            uint8_t ENHANCE_RED         : 1;
+            uint8_t ENHANCE_GREEN       : 1;
+            uint8_t ENHANCE_BLUE        : 1;
+        };
+        uint8_t flags;
     }
-    ppuMask;
+    mask;
 
-    enum ppuStatus {
-        SPRITE_OVERFLOW = 0x20,
-        SPRITE_ZERO_HIT = 0x40,
-        VERTICAL_BLANK  = 0x80
+    union
+    {
+        struct 
+        {
+            uint8_t STATUS_UNUSED   : 5;
+            uint8_t SPRITE_OVERFLOW : 1;
+            uint8_t SPRITE_ZERO_HIT : 1;
+            uint8_t VERTICAL_BLANK  : 1;
+        };
+        uint8_t flags;
     }
-    ppuStatus;
+    status;
+
+    union
+	{
+		struct
+		{
+			uint16_t coarseX : 5;
+			uint16_t coarseY : 5;
+			uint16_t nametableX : 1;
+			uint16_t nametableY : 1;
+			uint16_t fineY : 3;
+			uint16_t unused : 1;
+		};
+		uint16_t reg;
+	}
+    VRam, tmpVRam;
 
     /* Internal state */
-    uint8_t  hiByte, dataBuffer;
-    uint8_t  control, mask, status;
+    uint8_t  latch, dataBuffer;
+    uint8_t  fineX;
     uint8_t  nmi;
 
     /* PPU memory, with direct access to CHR data */
@@ -62,7 +91,19 @@ typedef struct PPU2C02_Struct
     uint8_t  nameTables[2][1024];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
-    uint16_t VRam, tmpVRam;
+    //uint16_t VRam, tmpVRam;
+
+    /* Temp storage */
+    struct NextTile_struct
+    {
+        uint16_t index;
+        uint8_t  lowByte; 
+        uint8_t  highByte;    
+    }
+    nextTile;
+
+	uint16_t bg_shifter_pattern_lo;
+	uint16_t bg_shifter_pattern_hi;
 
     /* Clock info and helpers */
     int16_t  cycle, scanline;
@@ -72,7 +113,9 @@ typedef struct PPU2C02_Struct
 
     GLuint  fbufferTexture, pTableTexture, paletteTexture;
     Shader  fbufferShader;
-    uint8_t frameBuffer[256 * 240];
+    uint8_t frameBuffer[256 * 240 * 3];
+    uint8_t fullPixels[192];
+    uint8_t palette;
 }
 PPU2C02;
 

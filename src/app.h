@@ -177,6 +177,16 @@ inline void app_update (App * app)
         app->running = 0;
     }
 
+    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_T)) 
+    {
+        NES.ppu.palette++;
+        printf("Pal colors: %02x %02x %02x %02x\n", 
+            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2)),
+            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 1),
+            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 2),
+            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 3));
+    }
+
     /* Update emulator */
     if (app->emulationRun)
     {

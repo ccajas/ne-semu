@@ -22,7 +22,7 @@ const char * ppu_fs_source =
 
 "#version 110\n"
 "varying vec2 TexCoords;\n"
-"uniform sampler1D colorPalette;\n"
+"uniform sampler2D colorPalette;\n"
 "uniform sampler2D indexed;\n"
 "uniform vec3 textColor;\n"
 
@@ -42,10 +42,10 @@ const char * ppu_fs_source =
 
 "void main()\n"
 "{\n"
-"    vec3 tint = vec3(113, 115, 126) / 127.0;\n"
-"    float sampled = texture2D(indexed, TexCoords).r;\n"
-"    vec3 vgColor = applyVignette(vec3(sampled));\n"
-"    gl_FragColor = vec4(vec3(sampled) * tint, 1.0);\n"
+"    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
+"    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
+"    vec4 texel   = texture2D(colorPalette, vec2(sampled.r / 4.0, 0.0));\n"
+"    gl_FragColor = vec4(sampled.rgb, 1.0);\n"
 "}\n";
 
 const uint16_t palette2C03[64] = 
@@ -67,8 +67,7 @@ void ppu_create_image (PPU2C02 * const ppu)
 	/* Create textures */
 	texture_create (&ppu->fbufferTexture);
 	texture_init (ppu->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
-
-	glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, 256, 240, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	texture_create (&ppu->pTableTexture);
 	texture_init (ppu->pTableTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
@@ -77,24 +76,35 @@ void ppu_create_image (PPU2C02 * const ppu)
 	/* Create palette texture */
 	texture_create (&ppu->paletteTexture);
 	texture_init (ppu->paletteTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
-	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 64, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);	
 
-	glBindTexture (GL_TEXTURE_2D, 0);
+	char* pixels = (char*)calloc(192, 1);
+	for (int i = 0; i < 192; i += 3)
+	{
+		uint16_t palColor = palette2C03[i / 3];
+		pixels[i] =   (palColor >> 8) << 5;
+		pixels[i+1] = (palColor >> 4) << 5;
+		pixels[i+2] = (palColor << 5);
+	}
+
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 64, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);	
+	free (pixels);
 }
 
 void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 {
 	ppu_create_image (ppu);
-	ppu->control = 0;
-	ppu->mask = 0;
-	ppu->status = 0;
+	ppu->control.flags = 0;
+	ppu->mask.flags = 0;
+	ppu->status.flags = 0;
 
 	ppu->scanline = 0;
-	ppu->cycle = 0;
-	ppu->frame = 0;
-	ppu->hiByte = 1;
+	ppu->cycle = ppu->frame = 0;
+	ppu->latch = 0;
+	ppu->fineX = 0;
 	ppu->dataBuffer = 0;
-	ppu->VRam = ppu->tmpVRam = 0x0;
+
+	ppu->bg_shifter_pattern_lo = ppu->bg_shifter_pattern_hi = 0;
+	ppu->VRam.reg = ppu->tmpVRam.reg = 0x0;
 
 	/* Copy the first 8K of CHR data as needed for mapper 0 */
 
@@ -108,98 +118,56 @@ void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 	}
 }
 
-/* Helper read functions */
-
-inline void ppu_vram_increment (PPU2C02 * const ppu)
-{
-	ppu->VRam += (ppu->control & VRAM_ADD_INCREMENT) ? 32 : 1;
-}
-
-inline void ppu_read_status (PPU2C02 * const ppu, uint8_t * data)
-{
-	/* Combine top 3 bits of register and bottom 3 bits of data buffer */ 
-	*data = (ppu->status & 0xe0) | (ppu->dataBuffer & 0x1f);
-
-	/* Clear vblank */
-	ppu->status &= (~VERTICAL_BLANK);
-	ppu->hiByte = 1;
-}
-
-inline void ppu_read_oam_data (PPU2C02 * const ppu, uint8_t * data)
-{
-	/* To be implemented */
-}
-
-inline void ppu_read_data (PPU2C02 * const ppu, uint8_t * data)
-{
-	/* Return data from previous data request (dummy read). Data buffer
-	   is returned in the next request */
-	*data = ppu->dataBuffer;
-	ppu->dataBuffer = ppu_read (ppu, ppu->VRam);
-
-	/* The exception is reading from palette data, return it immediately */
-	if (ppu->VRam >= 0x3f00)
-		*data = ppu->dataBuffer;
-
-	if (ppu->scanline >= 0 && ppu->scanline < 240 && ppu->cycle < 256)
-	{
-		//IncrementCourseX();
-		//IncrementY();
-	}
-	else {
-		ppu_vram_increment (ppu);
-	}
-}
-
-/* Helper write functions */
-
-inline void ppu_write_control (PPU2C02 * const ppu, const uint8_t data)
-{
-	uint8_t oldNMI = ppu->control & GENERATE_VBLANK_NMI;
-	ppu->control = data;
-	ppu->tmpVRam ^= (ppu->control & NAMETABLE_1);
-	ppu->tmpVRam ^= (ppu->control & NAMETABLE_2);
-
-	if(!(ppu->status & VERTICAL_BLANK))
-		ppu->nmi = 0;
-	else if (oldNMI && (ppu->status & VERTICAL_BLANK))
-		ppu->nmi = 1;
-}
-
-inline void ppu_write_address (PPU2C02 * const ppu, const uint8_t data)
-{
-	if (ppu->hiByte == 1)
-		ppu->tmpVRam = (uint16_t)((data & 0x3f) << 8) | (ppu->tmpVRam & 0x00ff);
-	else {
-		ppu->tmpVRam = (ppu->tmpVRam & 0xff00) | data;
-		ppu->VRam = ppu->tmpVRam;
-	}
-
-	ppu->hiByte = 1 - ppu->hiByte;
-}
-
-inline void ppu_write_data (PPU2C02 * const ppu, const uint8_t data)
-{
-	ppu_write (ppu, ppu->VRam, data);
-	ppu_vram_increment (ppu);
-}
+/* Read PPU register address */
 
 uint8_t ppu_register_read (PPU2C02 * const ppu, uint16_t const address)
 {
 	assert (address <= 0x7);
 	uint8_t data = 0x00;
 	
-	switch (address)
+	/*switch (address)
 	{	
-		case PPU_STATUS: ppu_read_status   (ppu, &data); break;
-		case OAM_DATA:   ppu_read_oam_data (ppu, &data); break;
-		case PPU_DATA: 	 ppu_read_data     (ppu, &data); break;
+		case PPU_STATUS:  ppu_read_status      (ppu, &data); break;
+        case OAM_ADDRESS: ppu_read_oam_address (ppu, &data); break;
+		case OAM_DATA:    ppu_read_oam_data    (ppu, &data); break;
+		case PPU_DATA: 	  ppu_read_data        (ppu, &data); break;
+		default: */
+			/* $2000 (control), $2001 (mask), $2005 (scroll), $2006 (PPU address) are write-only */
+			/*break;
+	}*/
 
-		/* Unused */
-		default:
-			/* 0x0 (control), 0x1 (mask), 0x5 (scroll), 0x6 (PPU address) are write-only */
+	switch (address)
+	{
+		case PPU_CONTROL:
+			break;
+		case PPU_MASK:
+			break;	
+		case PPU_STATUS:
+			data = (ppu->status.flags & 0xe0) | (ppu->dataBuffer & 0x1f);
+			ppu->status.VERTICAL_BLANK = 0;
+			ppu->latch = 0;
+			break;
+		case OAM_ADDRESS:
+			break;
+		case OAM_DATA:
+			break;
+		case PPU_SCROLL:
+			break;
+		case PPU_ADDRESS:
+			break;
+		case PPU_DATA:
+			/* Reads here are delayed, retrieve from the buffer */
+			data = ppu->dataBuffer;
+			ppu->dataBuffer = ppu_read(ppu, ppu->VRam.reg);
+
+			/* Fetch immediately if address is palette data */
+			if (ppu->VRam.reg >= 0x3f00) 
+				data = ppu->dataBuffer;
+
+			ppu->VRam.reg += (ppu->control.VRAM_ADD_INCREMENT) ? 32 : 1;
 			break;
 	}
+
 	return data;
 }
 
@@ -207,15 +175,70 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 {
 	assert (address <= 0x7);
 
-	switch (address)
+	/*switch (address)
 	{
 		case PPU_CONTROL: ppu_write_control (ppu, data); break;
-		case PPU_MASK:    ppu->mask = data;              break;
+		case PPU_MASK:    ppu->mask.flags = data;        break;
+        case OAM_ADDRESS: break;
+        case OAM_DATA:    break;
+        case PPU_SCROLL:  ppu_write_scroll  (ppu, data); break;
 		case PPU_ADDRESS: ppu_write_address (ppu, data); break;
 		case PPU_DATA:	  ppu_write_data    (ppu, data); break;
-
+		default: */
+			/* $2002 (status) not usable here */
+			/*break;
+	}*/
+	switch (address)
+	{
+		case PPU_CONTROL:
+			ppu->control.flags = data;
+			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_1;
+			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
+			break;
+		case PPU_MASK:
+			ppu->mask.flags = data;
+			break;
+		case PPU_STATUS:
+			break;
+		case OAM_ADDRESS:
+			break;
+		case OAM_DATA:
+			break;
+		case PPU_SCROLL:
+			if (ppu->latch == 0)
+			{
+				/* Write coarse & fine X values */
+				ppu->fineX = data & 0x07;
+				ppu->tmpVRam.coarseX = data >> 3;
+				ppu->latch = 1;
+			}
+			else
+			{
+				/* Write coarse & fine Y values */
+				ppu->tmpVRam.fineY = data & 0x7;
+				ppu->tmpVRam.coarseY = data >> 3;
+				ppu->latch = 0;
+			}
+			break;
+		case PPU_ADDRESS:
+			if (ppu->latch == 0)
+			{
+				/* Write low or high byte alternating */
+				ppu->tmpVRam.reg = (uint16_t)((data & 0x3f) << 8) | (ppu->tmpVRam.reg & 0xff);
+				ppu->latch = 1;
+			}
+			else
+			{
+				ppu->tmpVRam.reg = (ppu->tmpVRam.reg & 0xff00) | data;
+				ppu->VRam= ppu->tmpVRam;
+				ppu->latch = 0;
+			}
+			break;
+		case PPU_DATA:
+			ppu_write (ppu, ppu->VRam.reg, data);
+			ppu->VRam.reg += (ppu->control.VRAM_ADD_INCREMENT) ? 32 : 1;
+			break;
 		default:
-			/* 0x2 (status) not usable here */
 			break;
 	}
 }
@@ -229,12 +252,11 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 	if (address >= 0x0000 && address <= 0x1fff)
 	{
 		/* Read from CHR pattern table */
-		data = ppu->romCHR[address];
+		data = ppu->patternTables[address >> 12][address & 0xfff];//ppu->romCHR[address];
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
-		/* Read from name table data (mirrored every 4KB) 
-		   Todo: handle vertical mirroring mode */
+		/* Read from nametable data (mirrored every 4KB) */
 		address &= 0x0fff;
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
@@ -267,7 +289,7 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 		if (address == 0x14) address = 0x4;
 		if (address == 0x18) address = 0x8;
 		if (address == 0x1c) address = 0xc;
-		data = (ppu->paletteTable[address] & (ppu->mask & GRAYSCALE) ? 0x30 : 0x3f);
+		data = ppu->paletteTable[address];
 	}
 
 	return data;
@@ -282,9 +304,11 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
-		/* Read from name table data (mirrored every 4KB) 
-		   Todo: handle vertical mirroring mode */
+		/* Write to nametable data (mirrored every 4KB) */
 		address &= 0x0fff;
+		if ((address & 0x3ff) >= 0x3c0) {
+			printf("Attribute table write %02x to %04x\n", data, address);
+		}
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
 			if (address >= 0 && address <= 0x3ff)
@@ -310,7 +334,7 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
-		/* Read from palette table data */
+		/* Write to palette table data */
 		address &= 0x1f;
 		if (address == 0x10) address = 0x0;
 		if (address == 0x14) address = 0x4;
@@ -320,42 +344,108 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	}
 }
 
-void ppu_set_pixel (PPU2C02 * const ppu)
+uint8_t backgroundPixel (PPU2C02 * const ppu)
+{
+	if (!ppu->mask.RENDER_BG) {
+		return 0;
+	}
+
+	return 0;
+}
+
+void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y, uint8_t pixel)
 {
 	/* Draw some test noise */
-	uint8_t x = (uint8_t)ppu->cycle;
-	uint8_t y = (uint8_t)ppu->scanline - 1;
+	//uint8_t renderbg = ppu->control.BACKROUND_PATTERN_ADDR ? 0xff : 0;
+	ppu->frameBuffer[y * 256 + x] = pixel;//random() & 0xff;
+}
 
-	uint8_t renderbg = ((ppu->control & BACKROUND_PATTERN_ADDR) == BACKROUND_PATTERN_ADDR) ? 0xff : 0;
-	ppu->frameBuffer[y * 256 + x] = random() & 0xff;
+inline void ppu_nametable_fetch (PPU2C02 * const ppu)
+{
+	ppu->nextTile.index = ppu_read (ppu, 0x2000 | (ppu->VRam.reg & 0xfff));
+}
+
+inline void ppu_attribute_fetch (PPU2C02 * const ppu)
+{
+	/* To be implemented */	
+}
+
+inline void LoadBackgroundShifters (PPU2C02 * const ppu)
+{
+	/* To be implemented */
 }
 
 void ppu_clock (PPU2C02 * const ppu)
 {
-	if (ppu->scanline == 0 && ppu->cycle == 1)
-	{
-		ppu->status &= (~VERTICAL_BLANK);
-		ppu->status &= (~SPRITE_ZERO_HIT);
-		ppu->nmi = 0;
+	uint16_t cycleStart = ppu->cycle == 1;
+	/*uint16_t visible    = ppu->scanline >= 0 && ppu->scanline < 240;
+	uint16_t preLine    = ppu->scanline == 261;*/
+	uint16_t prefetch     = ppu->cycle >= 321 && ppu->cycle <= 336;
+	uint16_t visibleFetch = ppu->cycle >= 1   && ppu->cycle <= 256;
+	uint16_t fetchCycle   = prefetch || visibleFetch;
+
+	if ((ppu->scanline >= 0 && ppu->scanline < 240) || ppu->scanline == 261)
+	{		
+		if (ppu->scanline == 0 && ppu->cycle == 0)
+		{
+			// "Odd Frame" cycle skip
+			ppu->cycle = 1;
+		}
+
+		if (ppu->scanline == 261 && cycleStart)
+		{
+			// Effectively start of new frame, so clear vertical blank flag
+			ppu->status.VERTICAL_BLANK = 0;
+		}
+
+
+		if (fetchCycle)
+		{
+			/*
+			UpdateShifters();
+			Amd fetch operations.... */
+		}
+
+		// End of a visible scanline, so increment downwards...
+		if (ppu->cycle == 256)
+		{
+			//IncrementScrollY();
+		}
+
+		//...and reset the x position
+		if (ppu->cycle == 257)
+		{
+			//LoadBackgroundShifters();
+			//TransferAddressX();
+		}
+
+		/* Do more PPU reads (not used) */
+		if (ppu->cycle == 337 || ppu->cycle == 339)
+		{
+			ppu->nextTile.index = ppu_read(ppu, 0x2000 | (ppu->VRam.reg & 0x0fff));
+		}
+
+		if (ppu->scanline == 261 && ppu->cycle >= 280 && ppu->cycle < 305)
+		{
+			//TransferAddressY();
+		}
 	}
 
-	if (ppu->scanline >= 1 && ppu->scanline <= 240)
+	if (ppu->scanline == 240)
 	{
-		if (ppu->cycle < 256)
-			ppu_set_pixel (ppu);
-	}		
+		// Post Render Scanline - Do Nothing!
+	}
 
-	if (ppu->scanline == 241 && ppu->cycle == 1) /* Post visible scanline */
+	if (ppu->scanline >= 241 && ppu->scanline < 261)
 	{
-		ppu->status |= VERTICAL_BLANK;
-		ppu->status &= (~SPRITE_ZERO_HIT);
+		if (ppu->scanline == 241 && cycleStart)
+		{
+			ppu->status.VERTICAL_BLANK = 1;
+			if (ppu->control.ENABLE_NMI) 
+				ppu->nmi = 1;
 
-		/* Trigger VMI interrupt if needed */
-		if (ppu->control & GENERATE_VBLANK_NMI) {
-			ppu->nmi = 1;
+			ppu_set_bg (ppu);
 		}
-		/* Debug rendering */
-		//ppu_set_bg (ppu);
 	}
 
 	/* General scan/cycle counting */
@@ -367,7 +457,7 @@ void ppu_clock (PPU2C02 * const ppu)
 		ppu->cycle = 0;
 		ppu->scanline++;
 
-		if (ppu->scanline >= 262) /* This line is excluded, go straight to 0 */
+		if (ppu->scanline > 261)
 		{
 			ppu->scanline = 0;
 			ppu->frame++;
@@ -424,7 +514,7 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
 
     /* Draw framebuffer */
     glBindTexture (GL_TEXTURE_2D, ppu->fbufferTexture);
-    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 256, 240, 0, GL_RED, GL_UNSIGNED_BYTE, ppu->frameBuffer);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, ppu->frameBuffer);
 	draw_lazy_quad();
 
     /* Draw pattern tables */
@@ -444,10 +534,27 @@ void ppu_debug (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHe
 
     glBindTexture (GL_TEXTURE_2D, ppu->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RED, 128, 128, 0, GL_RED, GL_UNSIGNED_BYTE, ppu->patternTables[1]);
+
+    //glBindTexture (GL_TEXTURE_2D, ppu->paletteTexture);
+    //glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, ppu->fullPixels);
+
 	draw_lazy_quad();
+
+	/* Bind the palette to the 2nd texture too */
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, ppu->paletteTexture);
 
 	/* Finish */
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+inline uint32_t ppu_color_from_palette (PPU2C02 * const ppu, uint8_t palette, uint8_t pixel)
+{
+	/* 0x567 */
+	uint16_t color = palette2C03 [ppu_read(ppu, 0x3f00 + (palette << 2) + (pixel / 0x55)) & 0x3f];
+	return ((color & 0xf) << 4) | 
+		(uint32_t)(((color >> 4) & 0xf) << 12) | 
+		(uint32_t)(((color >> 8) & 0xf) << 20);
 }
 
 void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i) 
@@ -485,7 +592,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 
 void ppu_set_bg (PPU2C02 * const ppu)
 {
-	uint16_t table = (ppu->control & BACKROUND_PATTERN_ADDR) ? 1 : 0;
+	uint16_t table = (ppu->control.BACKROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Loop through 960 entries in nametable */
 	for (int y = 0; y < 30; y++) 
@@ -502,13 +609,24 @@ void ppu_set_bg (PPU2C02 * const ppu)
 			uint16_t pX = (tile & 15) << 3;
 			uint16_t pY = (tile >> 4) << 3;
 
+			uint16_t attrTableIndex = (y / 4) * 8 + x / 4;
+			
+    		uint8_t attrByte = ppu->nameTables[0][0x3c0 + attrTableIndex];
+			if (attrByte > 0)
+				printf("Attribute byte for tile %d, %d: %02x %02x\n", x, y, attrByte, 0x3c0 + attrTableIndex);
+
 			for (uint16_t row = 0; row < 8; row++)
 			{
 				/* Loop through a single row of the bit planes and combine values */
 				for (uint16_t col = 0; col < 8; col++)
 				{
-					ppu->frameBuffer[((yPos + row) * 256) + (xPos + col)] = 
-						ppu->patternTables[table][((pY + row) * 128) + pX + col];
+					uint16_t p = (((yPos + row) * 256) + (xPos + col));
+					uint8_t  index = ppu->patternTables[table][((pY + row) * 128) + pX + col] / 0x55;
+					uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (ppu->palette << 2) + index) & 0x3f];
+
+					ppu->frameBuffer[p * 3]   = (uint8_t)(palColor >> 8) << 5;
+					ppu->frameBuffer[p * 3+1] = (uint8_t)(palColor >> 4) << 5;
+					ppu->frameBuffer[p * 3+2] = (uint8_t)(palColor << 5);
 				}
 			}
 			//printf("%02x ", tile);
