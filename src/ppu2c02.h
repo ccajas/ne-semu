@@ -121,8 +121,9 @@ PPU2C02;
 
 /* Shaders used and 2C03/2C05 color palette */
 
-extern const char *ppu_vs_source, *ppu_fs_source;
+extern const char    *ppu_vs_source, *ppu_fs_source;
 extern const uint16_t palette2C03[64];
+extern const uint32_t PPU_CYCLES_PER_FRAME;
 
 /* For drawing quads (lazy loading) */
 

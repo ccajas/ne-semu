@@ -28,15 +28,13 @@ const char * ppu_fs_source =
 
 "vec3 applyVignette(vec3 color)\n"
 "{\n"
-"    vec2 position = (TexCoords.xy / 256.0) - vec2(0.5);\n"           
+"    vec2 position = (TexCoords.xy) - vec2(0.5);\n"           
 "    float dist = length(position);\n"
 
-"    float radius = 0.5;\n"
-"    float softness = 0.02;\n"
+"    float radius = 1.8;\n"
+"    float softness = 1.0;\n"
 "    float vignette = smoothstep(radius, radius - softness, dist);\n"
-
-"    color.rgb = color.rgb - (1.0 - vignette);\n"
-
+"    color.rgb = color.rgb - (0.95 - vignette);\n"
 "    return color;\n"
 "}\n"
 
@@ -45,7 +43,7 @@ const char * ppu_fs_source =
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
 "    vec4 texel   = texture2D(colorPalette, vec2(sampled.r / 4.0, 0.0));\n"
-"    gl_FragColor = vec4(sampled.rgb, 1.0);\n"
+"    gl_FragColor = vec4(applyVignette(sampled.rgb), 1.0);\n"
 "}\n";
 
 const uint16_t palette2C03[64] = 
@@ -145,6 +143,7 @@ uint8_t ppu_register_read (PPU2C02 * const ppu, uint16_t const address)
 		case PPU_STATUS:
 			data = (ppu->status.flags & 0xe0) | (ppu->dataBuffer & 0x1f);
 			ppu->status.VERTICAL_BLANK = 0;
+			ppu->VRam.reg = ppu->tmpVRam.reg;
 			ppu->latch = 0;
 			break;
 		case OAM_ADDRESS:
@@ -191,11 +190,13 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 	switch (address)
 	{
 		case PPU_CONTROL:
+			if (ppu->clockCount < 29658) break;
 			ppu->control.flags = data;
 			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_1;
 			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
 			break;
 		case PPU_MASK:
+			if (ppu->clockCount < 29658) break;
 			ppu->mask.flags = data;
 			break;
 		case PPU_STATUS:
@@ -205,6 +206,7 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 		case OAM_DATA:
 			break;
 		case PPU_SCROLL:
+			if (ppu->clockCount < 29658) break;
 			if (ppu->latch == 0)
 			{
 				/* Write coarse & fine X values */
@@ -221,6 +223,7 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 			}
 			break;
 		case PPU_ADDRESS:
+			if (ppu->clockCount < 29658) break;
 			if (ppu->latch == 0)
 			{
 				/* Write low or high byte alternating */
@@ -350,11 +353,38 @@ uint8_t backgroundPixel (PPU2C02 * const ppu)
 	return 0;
 }
 
-void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y, uint8_t pixel)
+void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
-	/* Draw some test noise */
-	//uint8_t renderbg = ppu->control.BACKROUND_PATTERN_ADDR ? 0xff : 0;
-	ppu->frameBuffer[y * 256 + x] = pixel;//random() & 0xff;
+	uint16_t tileX = x / 8;
+	uint16_t tileY = y / 8;
+	uint16_t row = x % 8;
+	uint16_t col = y % 8;
+
+	uint16_t pTable = (ppu->control.BACKROUND_PATTERN_ADDR) ? 1 : 0;
+
+	/* Get offset value in memory based on tile position */
+	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
+	uint8_t tile = ppu_read(ppu, (tileY * 32 + tileX) + (0x2000 | baseTable * 0x400));
+	uint8_t xPos = tileX * 8;
+	uint8_t yPos = tileY * 8;
+
+	/* Positioning in pattern table */
+	uint16_t pX = (tile & 15) << 3;
+	uint16_t pY = (tile >> 4) << 3;
+
+	/* Get attribute table info */
+	uint16_t attrTableIndex = ((tileY / 4) * 8) + tileX / 4;
+	uint8_t  attrByte = ppu->nameTables[0][0x3c0 + attrTableIndex];
+	uint8_t  palette = attrByte >> ((tileY % 4 / 2) << 2 | (tileX % 4 / 2) << 1) & 3;
+
+	/* Combine bitplanes and color the pixel */
+	uint16_t p = ((yPos + row) << 8) + (xPos + col);
+	uint8_t  index    = ppu->patternTables[pTable][((pY + row) * 128) + pX + col] / 0x55;
+	uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
+
+	ppu->frameBuffer[p * 3]   = (uint8_t)(palColor >> 8) << 5;
+	ppu->frameBuffer[p * 3+1] = (uint8_t)(palColor >> 4) << 5;
+	ppu->frameBuffer[p * 3+2] = (uint8_t)(palColor << 5);
 }
 
 inline void ppu_nametable_fetch (PPU2C02 * const ppu)
@@ -372,6 +402,8 @@ inline void LoadBackgroundShifters (PPU2C02 * const ppu)
 	/* To be implemented */
 }
 
+const uint32_t PPU_CYCLES_PER_FRAME = 89342; /* 341 cycles per 262 scanlines */
+
 void ppu_clock (PPU2C02 * const ppu)
 {
 	uint16_t cycleStart = ppu->cycle == 1;
@@ -383,16 +415,19 @@ void ppu_clock (PPU2C02 * const ppu)
 
 	if ((ppu->scanline >= 0 && ppu->scanline < 240) || ppu->scanline == 261)
 	{		
-		if (ppu->scanline == 0 && ppu->cycle == 0)
+		if (ppu->scanline == 0 && ppu->cycle == 1)
 		{
 			// "Odd Frame" cycle skip
-			ppu->cycle = 1;
+			//ppu->cycle = 1;
 		}
+		
 
 		if (ppu->scanline == 261 && cycleStart)
 		{
 			// Effectively start of new frame, so clear vertical blank flag
 			ppu->status.VERTICAL_BLANK = 0;
+			if (ppu->control.ENABLE_NMI) 
+				ppu->nmi = 1;
 		}
 
 
@@ -438,18 +473,20 @@ void ppu_clock (PPU2C02 * const ppu)
 		if (ppu->scanline == 241 && cycleStart)
 		{
 			ppu->status.VERTICAL_BLANK = 1;
-			if (ppu->control.ENABLE_NMI) 
-				ppu->nmi = 1;
-
-			ppu_set_bg (ppu);
+			//ppu_set_bg (ppu);
 		}
+	}
+
+	if (ppu->cycle < 256 && ppu->scanline < 240)
+	{
+		ppu_set_pixel (ppu, ppu->cycle, ppu->scanline);
 	}
 
 	/* General scan/cycle counting */
 	ppu->clockCount++;
 	ppu->cycle++;
 
-	if (ppu->cycle >= 341)
+	if (ppu->cycle % 341 == 0)
 	{
 		ppu->cycle = 0;
 		ppu->scanline++;
@@ -559,7 +596,7 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 	for (uint16_t tile = 0; tile < 256; tile++)
 	{
 		/* Get offset value in memory based on tile position */
-		uint16_t offset = i * 0x1000 + ((tile / 16) << 8) + ((tile & 15) << 4);
+		uint16_t offset = i * 0x1000 + ((tile / 16) << 8) + ((tile % 16) << 4);
 
 		/* Loop through each row of a tile */
 		for (uint16_t row = 0; row < 8; row++)
@@ -607,7 +644,8 @@ void ppu_set_bg (PPU2C02 * const ppu)
 			uint16_t pX = (tile & 15) << 3;
 			uint16_t pY = (tile >> 4) << 3;
 
-			uint16_t attrTableIndex = (y / 4) * 8 + x / 4;
+			/* Get attribute table info */
+			uint16_t attrTableIndex = ((y / 4) * 8) + x / 4;
     		uint8_t  attrByte = ppu->nameTables[0][0x3c0 + attrTableIndex];
 			uint8_t  palette = attrByte >> ((y % 4 / 2) << 2 | (x % 4 / 2) << 1) & 3;
 
