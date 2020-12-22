@@ -34,17 +34,10 @@ inline void bus_reset (Bus * const bus)
 
 inline void bus_clock (Bus * const bus)
 {
-    cpu_clock (bus);
-    for (int i = 0; i < 3; i++)
-    {
-        ppu_clock (&bus->ppu);
+    if (bus->ppu.clockCount % 3 == 0) {
+        cpu_clock (bus);
     }
-    /* Check if a new NMI flag has been set by PPU */
-    if (bus->ppu.nmi)
-    {
-        nmi6502();
-        bus->ppu.nmi = 0;
-    }
+    ppu_clock (&bus->ppu);
 }
 
 inline void bus_exec (Bus * const bus, uint32_t const tickcount)

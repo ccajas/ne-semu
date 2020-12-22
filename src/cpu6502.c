@@ -92,6 +92,15 @@ void cpu_clock (Bus * const bus)
 {
     if (cpu->clockticks == 0)
     {
+        /* If NMI flag has been set, handle the interrupt */
+        if (bus->ppu.nmi)
+        {
+            nmi6502();
+            bus->ppu.nmi = 0;
+            cpu->clockCount++;
+            return;
+        }
+
         cpu->lastpc = cpu->r.pc;
         cpu->opcode = cpu_read(cpu->r.pc++);
         cpu->r.status |= FLAG_CONSTANT;
@@ -130,11 +139,10 @@ void cpu_clock (Bus * const bus)
 }
 
 //a few general functions used by various other functions
-inline void push16 (uint16_t pushval) 
+inline void push16 (uint16_t pushval)
 {
-    cpu_write (BASE_STACK + cpu->r.sp, (pushval >> 8) & 0xFF);
-    cpu_write (BASE_STACK + ((cpu->r.sp - 1) & 0xFF), pushval & 0xFF);
-    cpu->r.sp -= 2;
+    cpu_write (BASE_STACK + cpu->r.sp--, (pushval >> 8) & 0xff);
+    cpu_write (BASE_STACK + cpu->r.sp--, pushval & 0xff);
 }
 
 inline void push8 (uint8_t pushval) 
@@ -915,17 +923,23 @@ struct Instruction optable[256] = {
 void nmi6502() 
 {
     push16 (cpu->r.pc);
-    push8(cpu->r.status);
-    cpu->r.status |= FLAG_INTERRUPT;
-    cpu->r.pc = (uint16_t)cpu_read(0xfffa) | ((uint16_t)cpu_read(0xfffb) << 8);
+    flag_clear (FLAG_BREAK);
+    flag_set (FLAG_CONSTANT);
+    flag_set (FLAG_INTERRUPT);
+    push8 (cpu->r.status);
+
+	cpu->r.pc = (uint16_t)cpu_read(0xfffa) | ((uint16_t)cpu_read(0xfffb) << 8);
+	cpu->clockticks += 8;
 }
 
 void irq6502() 
 {
     push16 (cpu->r.pc);
     push8(cpu->r.status);
-    cpu->r.status |= FLAG_INTERRUPT;
+    flag_set (FLAG_INTERRUPT);
+
     cpu->r.pc = (uint16_t)cpu_read(0xfffe) | ((uint16_t)cpu_read(0xffff) << 8);
+	cpu->clockticks += 7;
 }
 
 void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)

@@ -1,5 +1,5 @@
 # Flags and pkg-config options
-CFLAGS = -Wall -s -O1 -MMD -MP `pkg-config --cflags glfw3 freetype2`
+CFLAGS = -Wall -Wno-missing-braces -s -O1 -MMD -MP `pkg-config --cflags glfw3 freetype2`
 LDFLAGS = `pkg-config --libs glfw3 freetype2`
 
 # Source and object files

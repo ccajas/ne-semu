@@ -31,7 +31,12 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
 uint32_t mapper_NROM_cpu_rw (Mapper * const mapper, uint16_t const address)
 {    
     /* Choose from 16KB or 32KB in banks to read from. No write possible */
-    return address & ((mapper->PRGbanks > 1) ? 0x7fff : 0x3fff);
+    if (address >= 0x8000 && address <= 0xffff)
+	{
+		uint32_t mapped_addr = address & (mapper->PRGbanks > 1 ? 0x7fff : 0x3fff);
+		return mapped_addr;
+	}
+    return (uint32_t)address;
 }
 
 void mapper_NROM_ppu_rw (uint16_t const address, uint32_t * mapped)
