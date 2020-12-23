@@ -28,6 +28,7 @@ typedef struct App_struct
     KeyboardState keyboardState, lastKeyboardState;
     uint16_t running;
     uint8_t  emulationRun;
+    uint8_t  ppuDebug;
 
     /* App assets */
     Scene scene;
@@ -49,6 +50,28 @@ inline void app_capture_drop (App * app, char * paths[])
     rom_load (&NES, app->dropPath);
     free (app->dropPath);
     bus_reset (&NES);
+}
+
+inline void app_toggle_maximize (App* const app)
+{
+    if (!glfwGetWindowAttrib(app->window, GLFW_MAXIMIZED)) {
+        glfwMaximizeWindow (app->window);
+    } else {
+        glfwRestoreWindow (app->window);
+    }   
+}
+
+inline void app_open_dialog()
+{
+    char *outPath = NULL;
+    nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
+
+    if (result == NFD_OKAY) 
+    {
+        rom_load (&NES, outPath);
+        free (outPath);
+        bus_reset (&NES);
+    }
 }
 
 void app_init(App * app)
@@ -126,58 +149,23 @@ inline void app_update (App * app)
 {
     app_update_input (app);
 
-    /* Toggle window maximization */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_F11))
-    {
-        if (!glfwGetWindowAttrib(app->window, GLFW_MAXIMIZED)) 
-        {
-            glfwMaximizeWindow (app->window);
-        }
-        else {
-            glfwRestoreWindow (app->window);
-        }
-    }
+    /* Const aliases */
+    KeyboardState * key     = &app->keyboardState;
+    KeyboardState * lastKey = &app->lastKeyboardState;
 
-    /* Check for opening file */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_O)) 
-    {
-        char *outPath = NULL;
-        nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
-            
-        if (result == NFD_OKAY) 
-        {
-            rom_load (&NES, outPath);
-            free (outPath);
-            bus_reset (&NES);
-        }
-    }
+    /* Standard app functions */
+    if (input_new_key (key, lastKey, GLFW_KEY_F11)) app_toggle_maximize (app);
+    if (input_new_key (key, lastKey, GLFW_KEY_O)) app_open_dialog();
+    if (input_new_key (key, lastKey, GLFW_KEY_ESCAPE) || 
+        glfwWindowShouldClose(app->window)) app->running = 0;
 
-    /* Step CPU */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_A)) 
-    {
-        bus_clock (&NES);
-    }
-
-    /* Run CPU */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_X)) 
-    {
-        app->emulationRun = 1 - app->emulationRun;
-    }
-
-    /* Reset CPU */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_R)) 
-    {
-        bus_reset (&NES);
-    }
+    /* CPU emulation functions */
+    if (input_new_key (key, lastKey, GLFW_KEY_R)) bus_reset (&NES);
+    if (input_new_key (key, lastKey, GLFW_KEY_X)) app->emulationRun = ~app->emulationRun;
+    if (input_new_key (key, lastKey, GLFW_KEY_Q)) ppu_toggle_debug (&NES.ppu);
 
     /* Check for closing window */
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_ESCAPE) || 
-        glfwWindowShouldClose(app->window))
-    {
-        app->running = 0;
-    }
-
-    if (input_new_key (&app->keyboardState, &app->lastKeyboardState, GLFW_KEY_T)) 
+    if (input_new_key (key, lastKey, GLFW_KEY_T)) 
     {
         NES.ppu.palette++;
         printf("Pal colors: %02x %02x %02x %02x\n", 
@@ -187,14 +175,16 @@ inline void app_update (App * app)
             ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 3));
     }
 
-    /* Update emulator */
-    if (app->emulationRun)
-    {
+    /* Update emulator in real time or step through cycles */
+    if (app->emulationRun) {
         bus_exec (&NES, 23863);
+    }
+    else {
+        if (input_new_key (key, lastKey, GLFW_KEY_A)) { bus_clock (&NES); }
     }
 
     /* Update window title */
-    char textbuf[256];
+    char textbuf[64];
     sprintf(textbuf, "Frame time: %f ms", app->timer.frameTime);
     glfwSetWindowTitle(app->window, textbuf);
 

@@ -18,7 +18,7 @@ typedef struct KeyboardState_struct
 }
 KeyboardState;
 
-int32_t input_key (KeyboardState * state, uint32_t key)
+inline int32_t input_key (KeyboardState * const state, uint32_t key)
 {
     for (int j = 0; j < MAX_KEYS; j++)
     {
@@ -29,7 +29,7 @@ int32_t input_key (KeyboardState * state, uint32_t key)
     return 0;
 }
 
-int32_t input_new_key (KeyboardState * state, KeyboardState * lastState, uint32_t key)
+inline int32_t input_new_key (KeyboardState * const state, KeyboardState * const lastState, uint32_t key)
 {
     for (int j = 0; j < MAX_KEYS; j++)
     {
@@ -41,7 +41,7 @@ int32_t input_new_key (KeyboardState * state, KeyboardState * lastState, uint32_
     return 0;
 }
 
-int32_t input_mouse (MouseState * state, uint32_t button)
+inline int32_t input_mouse (MouseState * const state, uint32_t button)
 {
     return (state->buttonMask >> button) & 1;
 }

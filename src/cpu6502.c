@@ -1,20 +1,21 @@
 /* Fake6502 CPU emulator core v1.1 *******************
- * (c)2011-2013 Mike Chambers                        *
+ * Adapted from Mike Chambers                        *
  *****************************************************/
 
 #include <string.h>
 #include "bus.h"
 
-//externally supplied functions
+/* externally supplied functions and defines */
+
 uint8_t cpu_read (uint16_t address)                { return bus_read(&NES, address);  }
 void    cpu_write(uint16_t address, uint8_t value) { bus_write(&NES, address, value); }
 
-//6502 defines
 CPU6502 *cpu = &NES.cpu;
 
 #define saveaccum(n) cpu->r.a = (uint8_t)((n) & 0xff)
 
 /* flag modifier macros */
+
 #define flag_set(f)   cpu->r.status |= f
 #define flag_clear(f) cpu->r.status &= (~f)
 
@@ -27,7 +28,7 @@ CPU6502 *cpu = &NES.cpu;
     while (*s) {*s = (unsigned char)(*s - 32); s++; }\
 }
 
-//flag calculation macros
+/* flag calculation macros */
 #define zerocalc(n) {\
     if ((n & 0xff) == 0) flag_set(FLAG_ZERO);\
         else flag_clear(FLAG_ZERO);\
@@ -1035,13 +1036,6 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 			value = bus_read(bus, addr++);
             sprintf(textbuf, "%02x ..  %s $%04x {REL}", value, cpu->lastop, addr + (int8_t)value);
 		}
-    
-		// Add the formed string to a std::map, using the instruction's
-		// address as the key. This makes it convenient to look for later
-		// as the instructions are variable in length, so a straight up
-		// incremental index is not sufficient.
-		//mapLines[line_addr] = sInst;
-
         /* Add instruction string to the printout */
         strcat(sInst, textbuf);
 
@@ -1052,6 +1046,4 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 	}
 
     cpu->debug = 0;
-
-	//return mapLines;
 }
