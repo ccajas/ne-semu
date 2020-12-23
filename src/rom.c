@@ -1,4 +1,4 @@
-
+#include <libgen.h>
 #include "bus.h"
 
 void rom_eject (NESrom * const rom)
@@ -6,6 +6,7 @@ void rom_eject (NESrom * const rom)
     vc_free (&rom->PRGdata);
     vc_free (&rom->CHRdata);
 
+    memset(&rom->filename[0], 0, sizeof(rom->filename));
     rom->valid = 0;
 }
 
@@ -20,6 +21,7 @@ void rom_load (Bus * const bus, const char* filename)
 
     if (headerString == 0x1a53454e) /* Chars "NES" + 0x1a */
     {
+        const char * file = basename(filename);
         printf("Rom valid! (%s)\n", filename);
         rom_eject (&bus->rom);
 
@@ -28,6 +30,7 @@ void rom_load (Bus * const bus, const char* filename)
 
         /* Copy header and PRG rom from 16 byte offset */
         memcpy (rom->header, filebuf, sizeof(rom->header));
+        memcpy (rom->filename, file, sizeof(rom->filename));
 
         /* After getting the rom info, the correct mapper can be obtained */
         rom->mirroring = rom->header[6] & 1;
@@ -42,6 +45,7 @@ void rom_load (Bus * const bus, const char* filename)
         vc_push_array (&rom->PRGdata, filebuf, rom->mapper.PRGbanks * 16384, sizeof(rom->header));
         vc_push_array (&rom->CHRdata, filebuf, rom->mapper.CHRbanks * 8192,  sizeof(rom->header) + 
             rom->PRGdata.capacity);
+        bus_reset (bus);
 
         /* Test disassembly output */
         cpu_disassemble (bus, 0xc000, 0xc080);

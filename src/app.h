@@ -48,8 +48,6 @@ inline void app_capture_drop (App * app, char * paths[])
 
     /* Attempt to load the file */
     rom_load (&NES, app->dropPath);
-    free (app->dropPath);
-    bus_reset (&NES);
 }
 
 inline void app_toggle_maximize (App* const app)
@@ -66,11 +64,8 @@ inline void app_open_dialog()
     char *outPath = NULL;
     nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
 
-    if (result == NFD_OKAY) 
-    {
+    if (result == NFD_OKAY) {
         rom_load (&NES, outPath);
-        free (outPath);
-        bus_reset (&NES);
     }
 }
 
@@ -164,31 +159,18 @@ inline void app_update (App * app)
     if (input_new_key (key, lastKey, GLFW_KEY_X)) app->emulationRun = ~app->emulationRun;
     if (input_new_key (key, lastKey, GLFW_KEY_Q)) ppu_toggle_debug (&NES.ppu);
 
-    /* Check for closing window */
-    if (input_new_key (key, lastKey, GLFW_KEY_T)) 
-    {
-        NES.ppu.palette++;
-        printf("Pal colors: %02x %02x %02x %02x\n", 
-            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2)),
-            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 1),
-            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 2),
-            ppu_read(&NES.ppu, 0x3f00 + (NES.ppu.palette << 2) + 3));
-    }
-
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {
         bus_exec (&NES, 23863);
     }
     else {
-        if (input_new_key (key, lastKey, GLFW_KEY_A)) { bus_clock (&NES); }
+        if (input_new_key (key, lastKey, GLFW_KEY_A)) { bus_cpu_step (&NES); }
     }
 
     /* Update window title */
     char textbuf[64];
     sprintf(textbuf, "Frame time: %f ms", app->timer.frameTime);
     glfwSetWindowTitle(app->window, textbuf);
-
-    glfwSwapBuffers(app->window);
     glfwPollEvents();
 }
 
@@ -196,6 +178,8 @@ void app_draw(App * app)
 {
     draw_scene (app->window, &app->scene);
     draw_debug (app->window, &app->timer);
+
+    glfwSwapBuffers(app->window);
 }
 
 void app_free(App * app)

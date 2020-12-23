@@ -12,6 +12,7 @@ typedef struct NESrom_struct
     }
     mirroringType;
 
+    char    filename[128];
     uint8_t header[16];
     uint8_t trainer[512];
     uint8_t mirroring;
