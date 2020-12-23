@@ -22,14 +22,14 @@ typedef struct PPU2C02_Struct
     {
         struct
         {
-            uint8_t NAMETABLE_1            : 1;
-            uint8_t NAMETABLE_2            : 1;
-            uint8_t VRAM_ADD_INCREMENT     : 1;
-            uint8_t SPRITE_PATTERN_ADDR    : 1;
-            uint8_t BACKROUND_PATTERN_ADDR : 1;
-            uint8_t SPRITE_SIZE            : 1;
-            uint8_t MASTER_SLAVE_SELECT    : 1;
-            uint8_t ENABLE_NMI             : 1;
+            uint8_t NAMETABLE_1             : 1;
+            uint8_t NAMETABLE_2             : 1;
+            uint8_t VRAM_ADD_INCREMENT      : 1;
+            uint8_t SPRITE_PATTERN_ADDR     : 1;
+            uint8_t BACKGROUND_PATTERN_ADDR : 1;
+            uint8_t SPRITE_SIZE             : 1;
+            uint8_t MASTER_SLAVE_SELECT     : 1;
+            uint8_t ENABLE_NMI              : 1;
         };
         uint8_t flags;
     }
@@ -87,11 +87,11 @@ typedef struct PPU2C02_Struct
 
     /* PPU memory, with direct access to CHR data */
     uint8_t *romCHR;
-    uint8_t  patternTables[2][128 * 128];
-    uint8_t  nameTables[2][1024];
+    uint8_t  patternTables[2][4096];
+    uint8_t  nameTables[4][1024];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
-    //uint16_t VRam, tmpVRam;
+    uint8_t  OAMaddress;
 
     /* Temp storage */
     struct NextTile_struct
@@ -114,6 +114,7 @@ typedef struct PPU2C02_Struct
 
     GLuint  fbufferTexture, pTableTexture, paletteTexture;
     Shader  fbufferShader;
+    uint8_t pTableDebug[2][128 * 128 * 3];
     uint8_t frameBuffer[256 * 240 * 3];
     uint8_t fullPixels[192];
     uint8_t palette;
@@ -155,3 +156,4 @@ void copy_pattern_table    (PPU2C02 * const ppu, uint8_t const i);
 
 inline uint8_t ppu_show_debug   (PPU2C02 * const ppu) { return ppu->debug; }
 inline void    ppu_toggle_debug (PPU2C02 * const ppu) { ppu->debug = ~ppu->debug; }
+void           nametable_debug  (PPU2C02 * const ppu, const int index);

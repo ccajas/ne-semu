@@ -56,9 +56,6 @@ inline uint8_t vc_get (struct Varray* v, int32_t index)
     if (index >= 0 && index < v->total) {
         return v->data[index];
     }
-    else if(index < 0 && index >= (0 - v->total)) {
-        return v->data[v->total + index];
-    }
     return -1;
 }
 
