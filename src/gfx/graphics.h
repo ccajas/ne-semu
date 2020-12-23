@@ -32,12 +32,21 @@ inline void graphics_init()
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
-inline void draw_scene (GLFWwindow * window, Scene * scene)
+void draw_scene (GLFWwindow * window, Scene * scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    int32_t width, height;
+    glfwGetFramebufferSize (window, &width, &height);
+
     /* Render the PPU framebuffer here */
+    glUseProgram(NES.ppu.fbufferShader.program);
+    mat4x4 p;
+    mat4x4_ortho(p, 0, width, 0, height, 0, 0.1f);
+    glUniformMatrix4fv (glGetUniformLocation(NES.ppu.fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
+
+    ppu_debug (&NES.ppu, width, height);
 }
 
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
@@ -45,12 +54,12 @@ inline void draw_debug_cpu (int32_t const x, int32_t const y)
     char textbuf[256];
     const float size = 0.5f;
 
-    text_draw_raised ("STATUS", x, y, size);
+    text_draw_raised ("STATUS", x, y, size, 0xffee00);
 
     sprintf (textbuf, "X:$%02x [%03d], Y:$%02x [%03d]", cpu->r.x, cpu->r.x, cpu->r.y, cpu->r.y);
-    text_draw_raised (textbuf, x , y - 16, size);
+    text_draw_raised (textbuf, x , y - 16, size, -1);
     sprintf (textbuf, "A:$%02x, [%03d], SP:$%04x", cpu->r.a, cpu->r.a, cpu->r.sp);
-    text_draw_raised (textbuf, x , y - 32, size);
+    text_draw_raised (textbuf, x , y - 32, size, -1);
 }
 
 inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_t cols, int16_t const start)
@@ -64,7 +73,7 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
     {
         sprintf(textbuf + strlen(textbuf), "%02x ", j);
     }
-    text_draw_raised (textbuf, x, y, size);
+    text_draw_raised (textbuf, x, y, size, -1);
     for (int i = 1; i <= rows; i++)
     {
         sprintf(textbuf, "$%04x ", (uint16_t)addr);
@@ -72,20 +81,13 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
         {
             sprintf(textbuf + strlen(textbuf), "%02x ", bus_read(&NES, addr++)); 
         }
-        text_draw_raised (textbuf, x, y - (i * 16), size);
+        text_draw_raised (textbuf, x, y - (i * 16), size, -1);
     }
 }
 
 void draw_debug_ppu (int32_t const width, int32_t const height)
 {
-	/* Test draw, use PPU shader */
-    glUseProgram(NES.ppu.fbufferShader.program);
-    mat4x4 p;
-    mat4x4_ortho(p, 0, width, 0, height, 0, 0.1f);
-    glUniformMatrix4fv (glGetUniformLocation(NES.ppu.fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
-
     /* Draw PPU graphical output */
-    ppu_debug (&NES.ppu, width, height);
     text_begin (width, height);
 
     char textbuf[256];
@@ -97,7 +99,7 @@ void draw_debug_ppu (int32_t const width, int32_t const height)
             uint8_t tile = ppu_read(&NES.ppu, (y * 32 + x) + 0x2000);
             sprintf(textbuf + strlen(textbuf), "%02x ", tile);
         }
-        text_draw_white (textbuf, 0, height - 10 - y * 24, 0.4f);
+        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaa55eeff);
     }    
 }
 
@@ -106,10 +108,11 @@ void draw_debug (GLFWwindow * window, Timer * timer)
     update_timer (timer, glfwGetTime());
 
     int32_t width, height;
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize (window, &width, &height);
 
     /* Graphical PPU debug */
-    draw_debug_ppu(width, height);
+    if (ppu_show_debug (&NES.ppu))
+        draw_debug_ppu (width, height);
 
     /* Setup text */
     char textbuf[256];     
@@ -119,16 +122,16 @@ void draw_debug (GLFWwindow * window, Timer * timer)
 
     /* Vendor and framerate info */
     sprintf(textbuf, "Vendor: %s", vendor);
-    text_draw_raised (textbuf, 772.0f, height - 16.0f, 0.5f);
+    text_draw_raised (textbuf, 772.0f, height - 16.0f, 0.5f, -1);
     sprintf(textbuf, "Renderer: %s", renderer);
-    text_draw_raised (textbuf, 772.0f, height - 32.0f, 0.5f);
+    text_draw_raised (textbuf, 772.0f, height - 32.0f, 0.5f, -1);
     sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
-    text_draw_raised (textbuf, 772.0f, height - 48.0f, 0.5f);
+    text_draw_raised (textbuf, 772.0f, height - 48.0f, 0.5f, -1);
 
     /* Debug CPU and RAM */
     sprintf(textbuf, "PC: $%04x %02x %s Cycles: %ld, s: %.3f", 
         cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount, (float)(NES.ppu.frame / 60.0f));
-    text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.5f);
+    text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.5f, -1);
 
     /* CPU registers and storage locations for program/vars */
     draw_debug_cpu(772.0f, height - 112.0f);

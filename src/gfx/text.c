@@ -4,7 +4,7 @@
 const char* text_vs_source =
 
 "#version 330 core\n"
-"layout (location = 0) in vec4 vertex;\n" // <vec2 pos, vec2 tex>
+"layout (location = 0) in vec4 vertex;\n"
 "out vec2 TexCoords;\n"
 "uniform mat4 projection;\n"
 
@@ -20,14 +20,14 @@ const char* text_fs_source =
 "in vec2 TexCoords;\n"
 "out vec4 color;\n"
 "uniform sampler2D text;\n"
-"uniform vec3 textColor;\n"
+"uniform vec4 textColor;\n"
 
 "void main()\n"
 "{\n"
 "    vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);\n"
 "    if (texture(text, TexCoords).r < 0.02)\n"
 "        discard;\n"
-"    color = vec4(textColor, sampled) * sampled;\n"
+"    color = vec4(textColor.rgb, sampled * textColor.a) * sampled;\n"
 "}\n";
 
 void text_init()
@@ -165,14 +165,14 @@ void text_begin(int scrWidth, int scrHeight)
     glUniformMatrix4fv (glGetUniformLocation(textShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
 }
 
-void text_draw (
+void text_draw_color (
     const char text[], 
     float x, 
-    float y, 
+    float y,
     float scale, 
-    vec3 color)
+    vec4 color)
 {
-    glUniform3f(glGetUniformLocation(textShader.program, "textColor"), color[0], color[1], color[2]);
+    glUniform4f(glGetUniformLocation(textShader.program, "textColor"), color[0], color[1], color[2], color[3]);
 
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(textVAO);

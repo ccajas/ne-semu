@@ -110,6 +110,7 @@ typedef struct PPU2C02_Struct
     uint64_t clockCount, clockgoal;
     uint32_t frame;
     uint8_t  mirroring;
+    uint8_t  debug;
 
     GLuint  fbufferTexture, pTableTexture, paletteTexture;
     Shader  fbufferShader;
@@ -135,16 +136,22 @@ extern float    quadVertices[];
 
 typedef struct NESrom_struct NESrom;
 
-void ppu_reset     (PPU2C02 * const ppu, NESrom * const rom);
-void ppu_clock     (PPU2C02 * const ppu);
-void ppu_exec      (PPU2C02 * const ppu, uint32_t const tickcount);
+/* Exec and I/O functions */
+
+void    ppu_reset     (PPU2C02 * const ppu, NESrom * const rom);
+void    ppu_clock     (PPU2C02 * const ppu);
+void    ppu_exec      (PPU2C02 * const ppu, uint32_t const tickcount);
 
 uint8_t ppu_read           (PPU2C02 * const ppu, uint16_t address);
 void    ppu_write          (PPU2C02 * const ppu, uint16_t address, uint8_t const data);
 uint8_t ppu_register_read  (PPU2C02 * const ppu, uint16_t const address);
 void    ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data);
+ 
+/* Debug and draw functions */
 
-void ppu_set_bg         (PPU2C02 * const ppu);
-void ppu_set_sprites    (PPU2C02 * const ppu);
-void ppu_debug          (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight);
-void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i);
+void ppu_set_pixel         (PPU2C02 * const ppu, uint16_t const x, uint16_t const y);
+void ppu_debug             (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight);
+void copy_pattern_table    (PPU2C02 * const ppu, uint8_t const i);
+
+inline uint8_t ppu_show_debug   (PPU2C02 * const ppu) { return ppu->debug; }
+inline void    ppu_toggle_debug (PPU2C02 * const ppu) { ppu->debug = ~ppu->debug; }
