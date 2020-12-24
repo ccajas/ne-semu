@@ -161,20 +161,30 @@ void app_update (App * app)
 
     /* Controller buttons */
     NES.controller[0] = 0x00;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_K))     ? 0x80 : 0; /* A */
-	NES.controller[0] |= (input_key (key, GLFW_KEY_L))     ? 0x40 : 0; /* B */
-	NES.controller[0] |= (input_key (key, GLFW_KEY_S))     ? 0x20 : 0; /* Select */
-	NES.controller[0] |= (input_key (key, GLFW_KEY_ENTER)) ? 0x10 : 0; /* Start */
-	NES.controller[0] |= (input_key (key, GLFW_KEY_UP))    ? 0x08 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_DOWN))  ? 0x04 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_LEFT))  ? 0x02 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_RIGHT)) ? 0x01 : 0;
+	if (input_key (key, GLFW_KEY_K))     NES.controller[0] |= 0x80; /* A */
+	if (input_key (key, GLFW_KEY_L))     NES.controller[0] |= 0x40; /* B */
+	if (input_key (key, GLFW_KEY_S))     NES.controller[0] |= 0x20; /* Select */
+	if (input_key (key, GLFW_KEY_ENTER)) NES.controller[0] |= 0x10; /* Start */
+	if (input_key (key, GLFW_KEY_UP))    NES.controller[0] |= 0x08;
+	if (input_key (key, GLFW_KEY_DOWN))  NES.controller[0] |= 0x04;
+	if (input_key (key, GLFW_KEY_LEFT))  NES.controller[0] |= 0x02;
+	if (input_key (key, GLFW_KEY_RIGHT)) NES.controller[0] |= 0x01;
+
+    if (NES.controller[0] & 0x80)  printf("A\n");
+    if (NES.controller[0] & 0x40)  printf("B\n");
+    if (NES.controller[0] & 0x20)  printf("Select\n");
+    if (NES.controller[0] & 0x10)  printf("Start\n");
+    if (NES.controller[0] & 0x8)   printf("Up\n");
+    if (NES.controller[0] & 0x4)   printf("Down\n");
+    if (NES.controller[0] & 0x2)   printf("Left\n");
+    if (NES.controller[0] & 0x1)   printf("Right\n");
 
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {
         bus_exec (&NES, 23863);
     }
     else {
+        if (input_key     (key, GLFW_KEY_C))          { bus_scanline_step (&NES); }
         if (input_new_key (key, lastKey, GLFW_KEY_Z)) { bus_cpu_step (&NES); }
     }
 
