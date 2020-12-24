@@ -112,8 +112,6 @@ typedef struct PPU2C02_Struct
     uint8_t  mirroring;
     uint8_t  debug;
 
-    GLuint  fbufferTexture, pTableTexture, paletteTexture;
-    Shader  fbufferShader;
     uint8_t pTableDebug[2][128 * 128 * 3];
     uint8_t frameBuffer[256 * 240 * 3];
     uint8_t fullPixels[192];
@@ -121,17 +119,10 @@ typedef struct PPU2C02_Struct
 }
 PPU2C02;
 
-/* Shaders used and 2C03/2C05 color palette */
+/* Constants and 2C03/2C05 color palette */
 
-extern const char    *ppu_vs_source, *ppu_fs_source;
 extern const uint16_t palette2C03[64];
 extern const uint32_t PPU_CYCLES_PER_FRAME;
-
-/* For drawing quads (lazy loading) */
-
-extern uint32_t quadVAO;
-extern uint32_t quadVBO;
-extern float    quadVertices[];
 
 /* Forward declare ROM */
 
@@ -151,9 +142,7 @@ void    ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t
 /* Debug and draw functions */
 
 void ppu_set_pixel         (PPU2C02 * const ppu, uint16_t const x, uint16_t const y);
-void ppu_debug             (PPU2C02 * const ppu, int32_t const scrWidth, int32_t const scrHeight);
 void copy_pattern_table    (PPU2C02 * const ppu, uint8_t const i);
 
 inline uint8_t ppu_show_debug   (PPU2C02 * const ppu) { return ppu->debug; }
 inline void    ppu_toggle_debug (PPU2C02 * const ppu) { ppu->debug = ~ppu->debug; }
-void           nametable_debug  (PPU2C02 * const ppu, const int index);

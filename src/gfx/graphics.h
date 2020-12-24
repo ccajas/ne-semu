@@ -3,16 +3,144 @@
 
 #include "../app/timer.h"
 #include "text.h"
+#include "texture.h"
 
 typedef struct Camera_struct Camera;
 
 typedef struct Scene_struct
 {
     uint8_t bgColor[3];
+
+    GLuint 
+        fbufferTexture, 
+        pTableTexture, 
+        paletteTexture;
+    Shader fbufferShader;
 }
 Scene;
 
-inline void graphics_init()
+const char * ppu_vs_source =
+
+"#version 330\n"
+"layout (location = 0) in vec4 vertex;\n" // <vec2 pos, vec2 tex>
+"layout (location = 1) in vec2 texture;"
+"out vec2 TexCoords;\n"
+"uniform mat4 projection;\n"
+"uniform mat4 model;\n"
+
+"void main()\n"
+"{\n"
+"    vec4 localPos = model * vec4(vertex.xyz, 1.0);"
+"    gl_Position = projection * vec4(localPos.xy, 0.0, 1.0);\n"
+"    TexCoords = texture.xy;\n"
+"}\n";
+ 
+const char * ppu_fs_source =
+
+"#version 110\n"
+"varying vec2 TexCoords;\n"
+"uniform sampler2D colorPalette;\n"
+"uniform sampler2D indexed;\n"
+"uniform vec3 textColor;\n"
+
+"vec3 applyVignette(vec3 color)\n"
+"{\n"
+"    vec2 position = (TexCoords.xy) - vec2(0.5);\n"           
+"    float dist = length(position);\n"
+
+"    float radius = 1.8;\n"
+"    float softness = 1.0;\n"
+"    float vignette = smoothstep(radius, radius - softness, dist);\n"
+"    color.rgb = color.rgb - (0.95 - vignette);\n"
+"    return color;\n"
+"}\n"
+
+"vec3 applyScanline(vec3 color)\n"
+"{\n"
+"    vec2 position = (TexCoords.xy);\n"
+"    color *= pow(fract(position.y * 240.0), 0.75);\n"
+"    return color * 1.5;\n"
+"}\n"
+
+"void main()\n"
+"{\n"
+"    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
+"    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
+"    vec4 texel   = texture2D(colorPalette, vec2(sampled.r / 4.0, 0.0));\n"
+"    gl_FragColor = vec4(applyScanline(sampled.rgb), 1.0);\n"
+"}\n";
+
+uint32_t quadVAO = 0;
+uint32_t quadVBO = 0;
+
+float quadVertices[] = {
+
+     0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+     0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+     1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+     1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+};
+
+void draw_lazy_quad()
+{
+    if (quadVAO == 0)
+    {
+        glGenVertexArrays(1, &quadVAO);
+        glGenBuffers(1, &quadVBO);
+        glBindVertexArray(quadVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0); 
+        glBindVertexArray(0); 
+    }
+
+    glBindVertexArray(quadVAO);
+    glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+}
+
+inline void textures_setup (Scene * scene)
+{
+	/* Create shader */
+	scene->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
+
+	/* Disable byte-alignment restriction */
+	//glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	/* Create textures */
+	texture_create (&scene->fbufferTexture);
+	texture_init (scene->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+	texture_create (&scene->pTableTexture);
+	texture_init (scene->pTableTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RED, 128, 128, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+
+	/* Create palette texture */
+	texture_create (&scene->paletteTexture);
+	texture_init (scene->paletteTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+
+	char* pixels = (char*)calloc(192, 1);
+	for (int i = 0; i < 192; i += 3)
+	{
+		uint16_t palColor = palette2C03[i / 3];
+		pixels[i] =   (palColor >> 8) << 5;
+		pixels[i+1] = (palColor >> 4) << 5;
+		pixels[i+2] = (palColor << 5);
+	}
+
+	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 64, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, pixels);	
+	free (pixels);
+}
+
+inline void graphics_init (Scene * scene)
 {
     gladLoadGL();
     glfwSwapInterval(0);
@@ -22,7 +150,8 @@ inline void graphics_init()
 	glBlendEquation(GL_FUNC_ADD);
 
 	/* Init text and framebuffer objects */
-	text_init();
+	text_init ();
+	textures_setup (scene);
 
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
@@ -30,6 +159,41 @@ inline void graphics_init()
     glDepthFunc(GL_LEQUAL); // Backdrop depth trick
 
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+}
+
+void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight)
+{
+    mat4x4 model;
+
+    /* Draw pattern tables */
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 768, 0, 0);
+    mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[0]);
+	draw_lazy_quad();
+
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 1024, 0, 0);
+    mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[1]);
+
+    //glBindTexture (GL_TEXTURE_2D, scene->paletteTexture);
+    //glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, ppu->fullPixels);
+
+	draw_lazy_quad();
+
+	/* Bind the palette to the 2nd texture too */
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, scene->paletteTexture);
+
+	/* Finish */
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void draw_scene (GLFWwindow * window, Scene * scene)
@@ -41,12 +205,25 @@ void draw_scene (GLFWwindow * window, Scene * scene)
     glfwGetFramebufferSize (window, &width, &height);
 
     /* Render the PPU framebuffer here */
-    glUseProgram(NES.ppu.fbufferShader.program);
+    glUseProgram(scene->fbufferShader.program);
     mat4x4 p;
     mat4x4_ortho(p, 0, width, 0, height, 0, 0.1f);
-    glUniformMatrix4fv (glGetUniformLocation(NES.ppu.fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
 
-    ppu_debug (&NES.ppu, width, height);
+	uint16_t w = 768, h = 720;
+    mat4x4 model;
+    mat4x4_identity (model);
+    mat4x4_scale_aniso (model, model, w, h, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glActiveTexture (GL_TEXTURE0);
+
+    /* Draw framebuffer */
+    glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
+	draw_lazy_quad();
+
+    ppu_debug (scene, width, height);
 }
 
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
@@ -65,7 +242,7 @@ inline void draw_debug_cpu (int32_t const x, int32_t const y)
 inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_t cols, int16_t const start)
 {
     char textbuf[256];
-    const float size = 1.0f;
+    const float size = 0.45f;
     int16_t addr = start;
 
     sprintf(textbuf, " ---- ");
@@ -132,6 +309,9 @@ void draw_debug (GLFWwindow * window, Timer * timer)
     sprintf(textbuf, "PC: $%04x %02x %s Cycles: %ld, s: %.3f", 
         cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount, (float)(NES.ppu.frame / 60.0f));
     text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.5f, -1);
+
+    sprintf(textbuf, "%s", NES.rom.filename);
+    text_draw_raised (textbuf, 772.0f, height - 80.0f, 0.5f, 0x44ddff);
 
     /* CPU registers and storage locations for program/vars */
     draw_debug_cpu(772.0f, height - 112.0f);

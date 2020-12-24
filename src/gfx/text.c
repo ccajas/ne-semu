@@ -44,7 +44,6 @@ void text_init()
     const char* homeDir = getenv("HOME");
     char textbuf[256] = "";
     sprintf(textbuf, "%s/.local/share/fonts/monogram.ttf", homeDir);
-    printf("%s\n", textbuf);
 
     char fontStack[][256] = {
         "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
@@ -94,12 +93,12 @@ void text_init()
 	char* pixels = (char*)calloc(tex_width * tex_height, 1);
 	float pen_x = 0, pen_y = 0;
 
-    for (GLubyte c = 0; c < TOTAL_CHARS; c++)
+    for (int c = 0; c < TOTAL_CHARS; c++)
     {
         /* Load each character glyph */
         if (FT_Load_Char(face, c, FT_LOAD_RENDER))
         {
-            //printf("ERROR::FREETYTPE: Failed to load Glyph");
+            printf("ERROR::FREETYTPE: Failed to load Glyph %d\n", c);
             continue;
         }
 
@@ -161,7 +160,7 @@ void text_begin(int scrWidth, int scrHeight)
 {
     glUseProgram(textShader.program);
     mat4x4 p;
-    mat4x4_ortho(p, 0, scrWidth, 0, scrHeight, 0, 0.1f);
+    mat4x4_ortho(p, 0, scrWidth, 0, scrHeight, 0, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(textShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
 }
 
