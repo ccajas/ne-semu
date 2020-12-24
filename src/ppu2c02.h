@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
-#include "gfx/gl_gen.h"
-#include "gfx/text.h"
+#include "mapper.h"
 
 typedef struct PPU2C02_Struct 
 {
@@ -87,11 +86,11 @@ typedef struct PPU2C02_Struct
 
     /* PPU memory, with direct access to CHR data */
     uint8_t *romCHR;
-    uint8_t  patternTables[2][4096];
-    uint8_t  nameTables[4][1024];
+    uint8_t  nameTables[2048];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
     uint8_t  OAMaddress;
+    Mapper  *mapper;
 
     /* Temp storage */
     struct NextTile_struct

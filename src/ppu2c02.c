@@ -1,3 +1,4 @@
+#include <string.h>
 #include "ppu2c02.h"
 #include "rom.h"
 #include "gfx/texture.h"
@@ -25,16 +26,13 @@ void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 	ppu->bg_shifter_pattern_lo = ppu->bg_shifter_pattern_hi = 0;
 	ppu->VRam.reg = ppu->tmpVRam.reg = 0x0;
 
-	memset(&ppu->patternTables[0], 0, 4096);
-	memset(&ppu->patternTables[1], 0, 4096);
-
-	memset(&ppu->nameTables[0], 0, 1024);
-	memset(&ppu->nameTables[1], 0, 1024);
+	memset(&ppu->nameTables, 0, 2048);
 
 	/* Copy the first 8K of CHR data as needed for mapper 0 */
 
 	ppu->romCHR    = rom->CHRdata.data;
 	ppu->mirroring = rom->mirroring;
+	ppu->mapper    = &rom->mapper;
 
 	if (ppu->romCHR && rom->mapperID == 0)
 	{
@@ -84,19 +82,20 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 	const uint16_t POWERUP_CYCLES = 29658;
 
 	/* Some write registers are not ready during power up time */
-	switch (address)
+	/*switch (address)
 	{
 		case PPU_CONTROL: case PPU_MASK:
 		case PPU_SCROLL:  case PPU_ADDRESS:
 			if (ppu->clockCount < POWERUP_CYCLES) return;
-	}
+	}*/
 
 	switch (address)
 	{
 		case PPU_CONTROL:
 			ppu->control.flags = data;
-			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_1;
-			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
+			ppu->tmpVRam.reg = (ppu->tmpVRam.reg & 0xf3ff) | (((uint16_t) data & 0x03) << 10);
+			//ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_1;
+			//ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
 			break;
 		case PPU_MASK:
 			ppu->mask.flags = data;
@@ -126,18 +125,21 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 			if (ppu->latch == 0)
 			{
 				/* Write low or high byte alternating */
-				ppu->tmpVRam.reg = (uint16_t)((data & 0x3f) << 8) + (ppu->tmpVRam.reg & 0xff);
+				ppu->tmpVRam.reg &= 0xff;
+				ppu->tmpVRam.reg |= (uint16_t)((data & 0x3f) << 8);
+				ppu->latch = 1;
 			}
 			else
 			{
 				ppu->tmpVRam.reg = (ppu->tmpVRam.reg & 0xff00) + data;
 				ppu->VRam = ppu->tmpVRam;
+				ppu->latch = 0;
 			}
-			ppu->latch = ~ppu->latch;
 			break;
 		case PPU_DATA:
 			ppu_write (ppu, ppu->VRam.reg, data);
 			ppu->VRam.reg += (ppu->control.VRAM_ADD_INCREMENT) ? 32 : 1;
+			ppu->VRam.reg = ppu->VRam.reg & 0x3fff;
 			break;
 		default: /* PPU status ($2002) not writable */
 			break;
@@ -148,40 +150,31 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 {
 	/* Address should be mapped to lowest 16KB */
 	assert (address <= 0x3fff);
-	uint8_t data = 0x00;
+	assert (ppu->mapper);
 
 	if (address >= 0x0000 && address <= 0x1fff)
 	{
 		/* Read from CHR pattern table */
-		//printf("Read from $%04x\n", address);
-		data = ppu->patternTables[address >> 12][address & 0xfff];//ppu->romCHR[address];
+		return ppu->mapper->read(ppu->mapper, address, 1);
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
 		/* Read from nametable data (mirrored every 4KB) */
-		address &= 0x0fff;
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
-			if (address >= 0 && address <= 0x03ff)
-				data = ppu->nameTables [0][address & 0x3ff];
-			if (address >= 0x400 && address <= 0x7ff)
-				data = ppu->nameTables [0][address & 0x3ff];
-			if (address >= 0x800 && address <= 0xbff)
-				data = ppu->nameTables [1][address & 0x3ff];
-			if (address >= 0xc00 && address <= 0xfff)
-				data = ppu->nameTables [1][address & 0x3ff];
+			if (address >= 0x2400 && address <= 0x27ff)
+				address -= 0x400;
+			if (address >= 0x2800 && address <= 0x2bff)
+				address -= 0x400;
+			if (address >= 0x2c00 && address <= 0x2fff)
+				address -= 0x800;
 		}
 		if (ppu->mirroring == MIRROR_VERTICAL)
 		{
-			if (address >= 0 && address <= 0x03ff)
-				data = ppu->nameTables [0][address & 0x3ff];
-			if (address >= 0x400 && address <= 0x7ff)
-				data = ppu->nameTables [1][address & 0x3ff];
-			if (address >= 0x800 && address <= 0xbff)
-				data = ppu->nameTables [0][address & 0x3ff];
-			if (address >= 0xc00 && address <= 0xfff)
-				data = ppu->nameTables [1][address & 0x3ff];
+			if (address >= 0x2800 && address <= 0x2fff)
+				address -= 0x800;
 		}
+		return ppu->nameTables[address - 0x2000];
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
@@ -191,53 +184,42 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 		if (address == 0x14) address = 0x4;
 		if (address == 0x18) address = 0x8;
 		if (address == 0x1c) address = 0xc;
-		data = ppu->paletteTable[address];
+		return ppu->paletteTable[address];
 	}
-
-	return data;
+	else if (address >= 0x3000 && address <= 0x3EFF )
+	{
+    	return ppu_read (ppu, address - 0x1000);
+	}
+	return 1;
 }
 
 void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 {
+	assert (ppu->mapper);
+
 	if (address >= 0 && address <= 0x1fff)
 	{
 		/* Write to CHR pattern table */
-		//printf("Frame %d: Write attempt to CHR ROM: addr %04x data %02x cycle %d\n", ppu->frame, address, data, ppu->cycle);		
-		ppu->patternTables [(address & 0x1000) >> 12][address & 0xfff] = data;
+		ppu->mapper->write (ppu->mapper, address, data, 1);
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
 		/* Write to nametable data (mirrored every 4KB) */
-		address &= 0x0fff;
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
-			if (address >= 0 && address <= 0x3ff)
-				ppu->nameTables [0][address & 0x3ff] = data;
-				
-			if (address >= 0x400 && address <= 0x7ff)
-				ppu->nameTables [0][address & 0x3ff] = data;
-
-			if (address >= 0x800 && address <= 0xbff)
-				ppu->nameTables [1][address & 0x3ff] = data;
-
-			if (address >= 0xc00 && address <= 0xfff)
-				ppu->nameTables [1][address & 0x3ff] = data;
-
+			if (address >= 0x2400 && address <= 0x27ff)
+				address -= 0x400;
+			if (address >= 0x2800 && address <= 0x2bff)
+				address -= 0x400;
+			if (address >= 0x2c00 && address <= 0x2fff)
+				address -= 0x800;
 		}
-		else if (ppu->mirroring == MIRROR_VERTICAL)
+		if (ppu->mirroring == MIRROR_VERTICAL)
 		{
-			if (address >= 0 && address <= 0x3ff)
-				ppu->nameTables [0][address & 0x3ff] = data;
-
-			if (address >= 0x400 && address <= 0x7ff)
-				ppu->nameTables [1][address & 0x3ff] = data;
-
-			if (address >= 0x800 && address <= 0xbff)
-				ppu->nameTables [0][address & 0x3ff] = data;
-				
-			if (address >= 0xc00 && address <= 0xfff)
-				ppu->nameTables [1][address & 0x3ff] = data;
+			if (address >= 0x2800 && address <= 0x2fff)
+				address -= 0x800;
 		}
+		ppu->nameTables[address - 0x2000] = data;
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
@@ -255,6 +237,7 @@ void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
 	if (x >= 256) return;
 	if (y >= 240) return;
+	if (!ppu->mask.RENDER_BG) return;
 
 	uint16_t tileX = x / 8;
 	uint16_t tileY = y / 8;
@@ -265,7 +248,7 @@ void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 
 	/* Get offset value in memory based on tile position */
 	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
-	uint8_t tile = ppu_read(ppu, (tileY * 32 + tileX) + (0x2000 | baseTable * 0x400));
+	uint8_t tile = ppu_read(ppu, (tileY * 32 + tileX) + (0x2000 + baseTable * 0x400));
 	uint8_t xPos = tileX * 8;
 	uint8_t yPos = tileY * 8;
 
@@ -307,21 +290,24 @@ const uint32_t PPU_CYCLES_PER_FRAME = 89342; /* 341 cycles per 262 scanlines */
 
 void ppu_clock (PPU2C02 * const ppu)
 {
-	uint16_t cycleStart = ppu->cycle == 1;
-	/*uint16_t visible    = ppu->scanline >= 0 && ppu->scanline < 240;
-	uint16_t preLine    = ppu->scanline == 261;
-	uint16_t prefetch     = ppu->cycle >= 321 && ppu->cycle <= 336;
-	uint16_t visibleFetch = ppu->cycle >= 1   && ppu->cycle <= 256;
-	uint16_t fetchCycle   = prefetch || visibleFetch;*/
+	/*
+	  Line 
+	     0 --- Pre-line, start config
+		 1 --- First visible
+		 |
+	   240 --- Last visible
+	   241 --- Post render
+	   242 --- Vblank, enable NMI
+	   261 --- Last line
+	*/
 
-	if ((ppu->scanline >= 0 && ppu->scanline < 240) || ppu->scanline == 261)
+	if (ppu->scanline >= 0 && ppu->scanline < 240)
 	{		
 		if (ppu->scanline == 1 && ppu->cycle == 0) {
 			if (ppu->frame & 1) ppu->cycle = 1;
 		}
 		
-
-		if (ppu->scanline == 0 && cycleStart) {
+		if (ppu->scanline == 0 && ppu->cycle == 1) {
 			ppu->status.VERTICAL_BLANK = 0;
 		}
 
@@ -331,14 +317,11 @@ void ppu_clock (PPU2C02 * const ppu)
 		}
 	}
 
-	if (ppu->scanline >= 242 && ppu->scanline < 261)
+	if (ppu->scanline == 242 && ppu->cycle == 1)
 	{
-		if (ppu->scanline == 242 && cycleStart)
-		{
-			ppu->status.VERTICAL_BLANK = 1;
-			if (ppu->control.ENABLE_NMI) 
-				ppu->nmi = 1;
-		}
+		ppu->status.VERTICAL_BLANK = 1;
+		if (ppu->control.ENABLE_NMI) 
+			ppu->nmi = 1;
 	}
 
 	ppu_set_pixel (ppu, ppu->cycle, ppu->scanline);
@@ -355,6 +338,7 @@ void ppu_clock (PPU2C02 * const ppu)
 		if (ppu->scanline > 261)
 		{
 			ppu->scanline = 0;
+			ppu->nmi = 0;
 			ppu->frame++;
 		}
 	}
@@ -372,10 +356,6 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 		{
 			uint8_t tile_lsb = ppu->romCHR [offset + row];
 			uint8_t tile_msb = ppu->romCHR [offset + row + 8];
-
-			/* Copy into pattern tables first */
-			ppu->patternTables[i][(offset + row)     & 0xfff] = tile_lsb;
-			ppu->patternTables[i][(offset + row + 8) & 0xfff] = tile_msb;
 
 			/* Loop through a single row of the bit planes and combine values */
 			for (uint16_t col = 0; col < 8; col++)

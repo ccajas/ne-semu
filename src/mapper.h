@@ -1,4 +1,8 @@
+#ifndef MAPPER_H
+#define MAPPER_H
+
 #include <stdint.h>
+#include "utils/v_array.h"
 
 /* Forward declaration and wrappers */
 
@@ -10,23 +14,31 @@ typedef struct Mapper_struct
 
     uint8_t PRGbanks;
     uint8_t CHRbanks;
+    uint8_t bankSelect, lastBankStart;
+
+    /* Access to ROM data */
+    struct VArray *PRG;
+    struct VArray *CHR;
 
     /* Mapper is defined by its read/write implementations */
-    uint32_t (*cpuReadWrite)(Mapper*,        uint16_t);
-    void     (*ppuReadWrite)(uint16_t const, uint32_t*);
+    uint8_t (*read)(Mapper*, uint16_t const, uint8_t);
+    void    (*write)(Mapper*, uint16_t const, uint8_t const, uint8_t);
 }
 Mapper;
 
-Mapper mapper_apply (uint8_t header[], uint16_t const mapperID);
+Mapper mapper_apply     (uint8_t header[], uint16_t const mapperID);
+void   mapper_link_data (Mapper * const mapper, struct VArray * PRG, struct VArray * CHR);
 
-/* Concrete model read/write functions for CPU */   
+/* Concrete model read functions */   
 
-uint32_t mapper_NROM_cpu_rw  (Mapper * const mapper, uint16_t const address);
-uint32_t mapper_MMC1_cpu_rw  (Mapper * const mapper, uint16_t const address);
-uint32_t mapper_UxROM_cpu_rw (Mapper * const mapper, uint16_t const address);
+uint8_t mapper_NROM_read  (Mapper * const mapper, uint16_t const address, uint8_t rw);
+uint8_t mapper_MMC1_read  (Mapper * const mapper, uint16_t const address, uint8_t rw);
+uint8_t mapper_UxROM_read (Mapper * const mapper, uint16_t const address, uint8_t rw);
 
-/* Concrete model read/write functions for PPU */
+/* Concrete model write functions */
 
-void mapper_NROM_ppu_rw  (uint16_t const addr, uint32_t * mapped);
-void mapper_MMC1_ppu_rw  (uint16_t const addr, uint32_t * mapped);
-void mapper_UxROM_ppu_rw (uint16_t const addr, uint32_t * mapped);
+void mapper_NROM_write  (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t rw);
+void mapper_MMC1_write  (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t rw);
+void mapper_UxROM_write (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t rw);
+
+#endif

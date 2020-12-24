@@ -161,10 +161,10 @@ void app_update (App * app)
 
     /* Controller buttons */
     NES.controller[0] = 0x00;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_K))     ? 0x80 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_L))     ? 0x40 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_S))     ? 0x20 : 0;
-	NES.controller[0] |= (input_key (key, GLFW_KEY_ENTER)) ? 0x10 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_K))     ? 0x80 : 0; /* A */
+	NES.controller[0] |= (input_key (key, GLFW_KEY_L))     ? 0x40 : 0; /* B */
+	NES.controller[0] |= (input_key (key, GLFW_KEY_S))     ? 0x20 : 0; /* Select */
+	NES.controller[0] |= (input_key (key, GLFW_KEY_ENTER)) ? 0x10 : 0; /* Start */
 	NES.controller[0] |= (input_key (key, GLFW_KEY_UP))    ? 0x08 : 0;
 	NES.controller[0] |= (input_key (key, GLFW_KEY_DOWN))  ? 0x04 : 0;
 	NES.controller[0] |= (input_key (key, GLFW_KEY_LEFT))  ? 0x02 : 0;

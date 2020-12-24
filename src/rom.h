@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdint.h>
-#include "utils/v_array.h"
 #include "mapper.h"
 
 typedef struct NESrom_struct
@@ -20,8 +19,8 @@ typedef struct NESrom_struct
     uint8_t valid;
 
     /* Dynamic arrays for PRG and CHR data */
-    struct Varray PRGdata;
-    struct Varray CHRdata;
+    struct VArray PRGdata;
+    struct VArray CHRdata;
 
     /* Each rom has one mapper */
     Mapper mapper;
