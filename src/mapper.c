@@ -8,7 +8,7 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
     mapper.properties = NULL;
 
     mapper.PRGbanks = header[4];                       /* Total PRG 16KB banks */
-    mapper.CHRbanks = (header[5] > 0) ? header[5] : 1; /* Total CHR 8KB banks */
+    mapper.CHRbanks = header[5]; /* Total CHR 8KB banks */
 
     printf("Mapper type %d, read %d PRG bank(s) and %d CHR bank(s). (%d KB and %d KB)\n", mapperID, 
         mapper.PRGbanks, mapper.CHRbanks, 
@@ -21,12 +21,13 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
     }
     else if (mapperID == 2) 
     {
-        /* No appropriate mapper could be found, default to 0 (NROM), may have unintended effects */
+        printf("Mapped to 2\n");
         mapper.read  = mapper_UxROM_read;
         mapper.write = mapper_UxROM_write;
     }
     else 
     {
+        /* No appropriate mapper could be found, default to 0 (NROM), may have unintended effects */
         mapper.read  = mapper_NROM_read;
         mapper.write = mapper_NROM_write;
     }
@@ -34,11 +35,7 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
     return mapper;
 }
 
-void mapper_link_data (Mapper * const mapper, struct VArray * PRG, struct VArray * CHR)
-{
-    mapper->PRG = PRG;
-    mapper->CHR = CHR;
-}
+/* NROM (mapper 0) */
 
 uint8_t mapper_NROM_read (Mapper * const mapper, uint16_t const address, uint8_t ppu)
 {
@@ -58,8 +55,9 @@ uint8_t mapper_NROM_read (Mapper * const mapper, uint16_t const address, uint8_t
 void mapper_NROM_write (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t ppu)
 {
     /* No mapping required. Assumes address is below 0x2000 */
-    if (ppu) 
+    if (ppu && mapper->CHRbanks == 0) 
     {
+        printf("Writing %02x to %04x\n", data, address);
         mapper->CHR->data[address] = data;
         return;
     }
@@ -67,19 +65,25 @@ void mapper_NROM_write (Mapper * const mapper, uint16_t const address, uint8_t c
 
 /* UnROM (mapper 2) */
 
-uint8_t mapper_UxROM_read (Mapper * const mapper, uint16_t const address, uint8_t ppu)
+uint8_t mapper_UxROM_read (Mapper * mapper, uint16_t const address, uint8_t ppu)
 {
-    if (ppu || address < 0x8000)
-    {
+    if (ppu)
+	{
+        printf("Reading from %04x\n", address);
+		return mapper_NROM_read (mapper, address, 1);
+	}
+
+    if (address < 0x8000) {
         return 0;
     }
 
     uint32_t mapped_addr = 0;
+    mapper->lastBankStart = vc_size(mapper->PRG) - 0x4000;
 
-    if (address >= 0xC000) {
-        mapped_addr = mapper->lastBankStart + (address - 0xC000);
+    if (address >= 0xc000) {
+        mapped_addr = vc_size(mapper->PRG) - 0x4000 + (address - 0xc000);
     } else {
-        mapped_addr = (address - 0x8000) + mapper->bankSelect * 16384;
+        mapped_addr = mapper->bankSelect * 16384 + (address - 0x8000);
     }
 
     return mapper->PRG->data[mapped_addr];
@@ -87,10 +91,17 @@ uint8_t mapper_UxROM_read (Mapper * const mapper, uint16_t const address, uint8_
 
 void mapper_UxROM_write (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t ppu) 
 {
-    if (ppu || address < 0x8000)
-    {
+    if (ppu)
+	{
+        if (address < 0x2000) {
+		    mapper_NROM_write (mapper, address, data, 1);
+        }
+        return;
+	}
+
+    if (address < 0x8000) {
         return;
     }
 
-    mapper->bankSelect = data & 0x7;
+    mapper->bankSelect = data & 0xf;
 }

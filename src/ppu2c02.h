@@ -85,8 +85,8 @@ typedef struct PPU2C02_Struct
     uint8_t  nmi;
 
     /* PPU memory, with direct access to CHR data */
-    uint8_t *romCHR;
     uint8_t  nameTables[2048];
+    uint8_t  VRamData[8192];
     uint8_t  OAMdata[256];
     uint8_t  paletteTable[32];
     uint8_t  OAMaddress;
@@ -106,7 +106,7 @@ typedef struct PPU2C02_Struct
 
     /* Clock info and helpers */
     int16_t  cycle, scanline;
-    uint64_t clockCount, clockgoal;
+    uint64_t clockCount, clockGoal;
     uint32_t frame;
     uint8_t  mirroring;
     uint8_t  debug;

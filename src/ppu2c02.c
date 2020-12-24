@@ -8,7 +8,7 @@ const uint16_t palette2C03[64] =
     0x333, 0x014, 0x006, 0x326, 0x403, 0x503, 0x400, 0x420, 0x320, 0x120, 0x031, 0x040, 0x022, 0,     0, 0,
     0x555, 0x036, 0x027, 0x407, 0x507, 0x704, 0x620, 0x630, 0x430, 0x140, 0x040, 0x053, 0x044, 0,     0, 0,
     0x777, 0x357, 0x447, 0x637, 0x707, 0x737, 0x743, 0x750, 0x660, 0x360, 0x070, 0x276, 0x077, 0x222, 0, 0,
-    0x777, 0x567, 0x657, 0x757, 0x747, 0x755, 0x764, 0x772, 0x773, 0x572, 0x473, 0x276, 0x467, 0x555, 0, 0
+    0x777, 0x567, 0x657, 0x767, 0x747, 0x755, 0x764, 0x772, 0x773, 0x572, 0x473, 0x276, 0x467, 0x555, 0, 0
 };
 
 void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
@@ -27,15 +27,16 @@ void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 	ppu->VRam.reg = ppu->tmpVRam.reg = 0x0;
 
 	memset(&ppu->nameTables, 0, 2048);
+	memset(&ppu->VRamData, 0, 8192);
 
 	/* Copy the first 8K of CHR data as needed for mapper 0 */
 
-	ppu->romCHR    = rom->CHRdata.data;
 	ppu->mirroring = rom->mirroring;
 	ppu->mapper    = &rom->mapper;
 
-	if (ppu->romCHR && rom->mapperID == 0)
+	if (rom->CHRdata.total && rom->mapperID == 0)
 	{
+		memcpy(ppu->VRamData, rom->CHRdata.data, rom->CHRdata.total);
         copy_pattern_table (ppu, 0);
         copy_pattern_table (ppu, 1);
 	}
@@ -79,10 +80,11 @@ uint8_t ppu_register_read (PPU2C02 * const ppu, uint16_t const address)
 void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data)
 {
 	assert (address <= 0x7);
-	const uint16_t POWERUP_CYCLES = 29658;
 
 	/* Some write registers are not ready during power up time */
-	/*switch (address)
+	/*
+	const uint16_t POWERUP_CYCLES = 29658;
+	switch (address)
 	{
 		case PPU_CONTROL: case PPU_MASK:
 		case PPU_SCROLL:  case PPU_ADDRESS:
@@ -152,43 +154,45 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 	assert (address <= 0x3fff);
 	assert (ppu->mapper);
 
-	if (address >= 0x0000 && address <= 0x1fff)
+	switch (address)
 	{
-		/* Read from CHR pattern table */
-		return ppu->mapper->read(ppu->mapper, address, 1);
-	}
-	else if (address >= 0x2000 && address <= 0x3eff)
-	{
-		/* Read from nametable data (mirrored every 4KB) */
-		if (ppu->mirroring == MIRROR_HORIZONTAL)
-		{
-			if (address >= 0x2400 && address <= 0x27ff)
-				address -= 0x400;
-			if (address >= 0x2800 && address <= 0x2bff)
-				address -= 0x400;
-			if (address >= 0x2c00 && address <= 0x2fff)
-				address -= 0x800;
-		}
-		if (ppu->mirroring == MIRROR_VERTICAL)
-		{
-			if (address >= 0x2800 && address <= 0x2fff)
-				address -= 0x800;
-		}
-		return ppu->nameTables[address - 0x2000];
-	}
-	else if (address >= 0x3f00 && address <= 0x3fff)
-	{
-		/* Read from palette table data */
-		address &= 0x1f;
-		if (address == 0x10) address = 0x0;
-		if (address == 0x14) address = 0x4;
-		if (address == 0x18) address = 0x8;
-		if (address == 0x1c) address = 0xc;
-		return ppu->paletteTable[address];
-	}
-	else if (address >= 0x3000 && address <= 0x3EFF )
-	{
-    	return ppu_read (ppu, address - 0x1000);
+		case 0 ... 0x1fff:
+			/* Read from CHR pattern table */
+			return ppu->mapper->read (ppu->mapper, address, 1);
+	
+		case 0x2000 ... 0x2fff:
+			/* Read from nametable data (mirrored every 4KB) */
+			if (ppu->mirroring == MIRROR_HORIZONTAL)
+			{
+				if (address >= 0x2400 && address <= 0x27ff)
+					address -= 0x400;
+				if (address >= 0x2800 && address <= 0x2bff)
+					address -= 0x400;
+				if (address >= 0x2c00 && address <= 0x2fff)
+					address -= 0x800;
+			}
+			if (ppu->mirroring == MIRROR_VERTICAL)
+			{
+				if (address >= 0x2800 && address <= 0x2fff)
+					address -= 0x800;
+			}
+			return ppu->nameTables[address - 0x2000];
+
+		case 0x3000 ... 0x3eff:
+			return ppu_read (ppu, address - 0x1000);
+
+		case 0x3f00 ... 0x3fff:
+			/* Read from palette table data */
+			address &= 0x1f;
+			if (address == 0x10) address = 0x0;
+			if (address == 0x14) address = 0x4;
+			if (address == 0x18) address = 0x8;
+			if (address == 0x1c) address = 0xc;
+
+			return ppu->paletteTable[address];
+
+		default:
+			break;
 	}
 	return 1;
 }
@@ -237,7 +241,7 @@ void ppu_set_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
 	if (x >= 256) return;
 	if (y >= 240) return;
-	if (!ppu->mask.RENDER_BG) return;
+	//if (!ppu->mask.RENDER_BG) return;
 
 	uint16_t tileX = x / 8;
 	uint16_t tileY = y / 8;
@@ -354,8 +358,8 @@ void copy_pattern_table (PPU2C02 * const ppu, uint8_t const i)
 		/* Loop through each row of a tile */
 		for (uint16_t row = 0; row < 8; row++)
 		{
-			uint8_t tile_lsb = ppu->romCHR [offset + row];
-			uint8_t tile_msb = ppu->romCHR [offset + row + 8];
+			uint8_t tile_lsb = ppu_read (ppu, offset + row);
+			uint8_t tile_msb = ppu_read (ppu, offset + row + 8);
 
 			/* Loop through a single row of the bit planes and combine values */
 			for (uint16_t col = 0; col < 8; col++)
