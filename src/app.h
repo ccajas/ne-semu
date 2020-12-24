@@ -74,7 +74,7 @@ void app_init(App * app)
     app->window = glfw_setup_window (app->resolution[0], app->resolution[1], app->title);
 
     /* Initialize graphics and emulation system */
-    graphics_init();
+    graphics_init (&app->scene);
     bus_reset (&NES);
 
     glfwSetWindowUserPointer       (app->window, app);
@@ -140,7 +140,7 @@ inline void app_update_input (App * app)
     app->mouseState.y = (int)yPos;
 }
 
-inline void app_update (App * app)
+void app_update (App * app)
 {
     app_update_input (app);
 
@@ -159,12 +159,23 @@ inline void app_update (App * app)
     if (input_new_key (key, lastKey, GLFW_KEY_X)) app->emulationRun = ~app->emulationRun;
     if (input_new_key (key, lastKey, GLFW_KEY_Q)) ppu_toggle_debug (&NES.ppu);
 
+    /* Controller buttons */
+    NES.controller[0] = 0x00;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_K))     ? 0x80 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_L))     ? 0x40 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_S))     ? 0x20 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_ENTER)) ? 0x10 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_UP))    ? 0x08 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_DOWN))  ? 0x04 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_LEFT))  ? 0x02 : 0;
+	NES.controller[0] |= (input_key (key, GLFW_KEY_RIGHT)) ? 0x01 : 0;
+
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {
         bus_exec (&NES, 23863);
     }
     else {
-        if (input_new_key (key, lastKey, GLFW_KEY_A)) { bus_cpu_step (&NES); }
+        if (input_new_key (key, lastKey, GLFW_KEY_Z)) { bus_cpu_step (&NES); }
     }
 
     /* Update window title */

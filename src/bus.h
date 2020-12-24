@@ -13,7 +13,11 @@ typedef struct Bus_struct
     PPU2C02  ppu;
     NESrom   rom;
 
-    /* Clock and helper vars */
+    /* Controllers */
+    uint8_t controller[2];
+    uint8_t controllerState[2];
+
+    /* Master clock */
     uint64_t clockCount;
 }
 Bus;
@@ -34,40 +38,29 @@ inline void bus_reset (Bus * const bus)
 
 inline void bus_clock (Bus * const bus)
 {
-    if (bus->ppu.clockCount % 3 == 0) {
+    bus->clockCount++;
+    if (bus->ppu.clockCount % 3 == 0) 
+    {
         cpu_clock (bus);
     }
     ppu_clock (&bus->ppu);
 }
 
-inline void bus_exec (Bus * const bus, uint32_t const tickcount)
+inline void bus_cpu_step (Bus * const bus)
 {
-    bus->clockCount++;
-    bus->cpu.clockGoal += tickcount;
-
-    while (bus->cpu.clockCount < bus->cpu.clockGoal) 
+    bus->cpu.clockGoal++;
+    for (int i = 0; i < 3; i++)
     {
         bus_clock (bus);
     }
 }
 
-inline uint8_t cpu_read_mapped (uint16_t const addr, uint32_t * mapped)
+inline void bus_exec (Bus * const bus, uint32_t const tickcount)
 {
-	// if PRGROM is 16KB
-	//     CPU Address Bus          PRG ROM
-	//     0x8000 -> 0xBFFF: Map    0x0000 -> 0x3FFF
-	//     0xC000 -> 0xFFFF: Mirror 0x0000 -> 0x3FFF
-	// if PRGROM is 32KB
-	//     CPU Address Bus          PRG ROM
-	//     0x8000 -> 0xFFFF: Map    0x0000 -> 0x7FFF
-    
-    /* Use generic mapper to read 1 bank for now */
-	if (addr >= 0x8000 && addr <= 0xffff)
-	{
-		*mapped = addr & 0x3fff;// (nPRGBanks > 1 ? 0x7fff : 0x3fff);
-        return 1;
-	}
-    return 0;
+    bus->cpu.clockGoal += tickcount;
+
+    while (bus->cpu.clockCount < bus->cpu.clockGoal) 
+        bus_clock (bus);
 }
 
 inline uint8_t bus_read (Bus * const bus, uint16_t const address) 
@@ -87,9 +80,19 @@ inline uint8_t bus_read (Bus * const bus, uint16_t const address)
 		data = ppu_register_read (&bus->ppu, address & 0x7);
 	}
     /* Read from APU and I/O */
-    else if (address >= 0x4000 && address < 0x4020)
+    else if (address >= 0x4000 && address < 0x4016)
     {
 
+    }
+    /* Read out controller status(es) starting from the top bit */
+	else if (address == 0x4016 || address == 0x4017)
+	{
+        if (bus->controllerState[address & 1] & 0x80) {
+            printf("Read controller: %02x\n", bus->controllerState[address & 1]);
+        }
+
+        data = (bus->controllerState[address & 1] & 0x80) > 0;
+        bus->controllerState[address & 1] <<= 1;
     }
     /* Read from cartridge space */
     else if (address >= 0x4020 && address <= 0xffff)
@@ -118,4 +121,8 @@ inline void bus_write (Bus * const bus, uint16_t const address, uint8_t const da
         //printf("Attempting to write to PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data);
 		ppu_register_write (&bus->ppu, address & 0x7, data);
 	}
+    else if (address == 0x4016 || address == 0x4017)
+    {
+        bus->controllerState[address & 1] = bus->controller[address & 1];
+    }
 }
