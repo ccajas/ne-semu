@@ -22,7 +22,7 @@ CPU6502 *cpu = &NES.cpu;
 /* Meta function macros (for disassembly/debugging) */
 
 #define get_opname()   if (cpu->debug) { sprintf(cpu->lastop,   "%s",  __func__); return; } 
-#define get_addrmode() if (cpu->debug) { sprintf(cpu->lastmode, "%4s", __func__); return; } 
+#define get_addrmode() if (cpu->debug) { sprintf(cpu->lastmode, "%4s", __func__); return 0; } 
 #define to_upper(str) {\
     char *s = str;\
     while (*s) {*s = (unsigned char)(*s - 32); s++; }\
@@ -71,19 +71,11 @@ void cpu_reset (CPU6502 * const cpu)
     cpu->clockCount = 0;
     cpu->clockGoal = 0;
 
-	/* Reset/clear registers */
-    cpu->r.pc = (uint16_t)cpu_read(cpu->abs_addr) | ((uint16_t)cpu_read(cpu->abs_addr + 1) << 8);
-    cpu->r.a = 0;
-    cpu->r.x = 0;
-    cpu->r.y = 0;
     cpu->r.sp = 0xfd;
-    cpu->r.status = 0 | FLAG_CONSTANT | FLAG_INTERRUPT;
+	cpu->r.status = FLAG_CONSTANT | FLAG_INTERRUPT;
 
-	/* Reset helper vars */
-	cpu->abs_addr = 0x0;
-	cpu->rel_addr = 0x0;
-	cpu->value = 0;
-    cpu->debug = 0;
+	/* Reset PC vector */
+    cpu->r.pc = cpu_read(0xfffc) | (cpu_read(0xfffd) << 8);
 
 	/* Takes 7 cycles to reset */
     cpu->clockticks = 7;
@@ -91,25 +83,25 @@ void cpu_reset (CPU6502 * const cpu)
 
 void cpu_clock (Bus * const bus)
 {
+    /* If NMI flag has been set, handle the interrupt */
+    if (bus->ppu.nmi)
+    {
+        nmi();
+        bus->ppu.nmi = 0;
+        cpu->clockCount += 8;
+        cpu->clockticks = 0;
+        //return;
+    }
+
     if (cpu->clockticks == 0)
     {
-        /* If NMI flag has been set, handle the interrupt */
-        if (bus->ppu.nmi)
-        {
-            nmi6502();
-            bus->ppu.nmi = 0;
-            cpu->clockCount++;
-            return;
-        }
-
         cpu->lastpc = cpu->r.pc;
         cpu->opcode = cpu_read(cpu->r.pc++);
         cpu->r.status |= FLAG_CONSTANT;
 
+        cpu->opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
         /* Fetch OP name, convert op position from table into ID */
         cpu->debug = 1;
-        cpu->opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
-
         (*optable[cpu->opID].addrmode)();
         (*optable[cpu->opID].op)();
 
@@ -123,10 +115,9 @@ void cpu_clock (Bus * const bus)
 */
         /* Exec instruction and get no. of cycles */
         penaltyop = 0;
-        penaltyaddr = 0;
         cpu->clockticks = optable[cpu->opID].ticks;
 
-        (*optable[cpu->opID].addrmode)();
+        penaltyaddr = (*optable[cpu->opID].addrmode)();
         (*optable[cpu->opID].op)();
 
         if (penaltyop && penaltyaddr) cpu->clockticks++;
@@ -167,71 +158,124 @@ inline uint8_t pull8()
 
 /* addressing mode functions, calculates effective addresses */
 
-void acc() { //accumulator
+uint8_t impl()
+{
     get_addrmode();
-}       
-
-void abso() 
-{ //absolute
-    get_addrmode();
-    cpu->abs_addr = (uint16_t)cpu_read(cpu->r.pc) | ((uint16_t)cpu_read(cpu->r.pc+1) << 8);
-    cpu->r.pc += 2;
+	cpu->value = cpu->r.a;
+	return 0;
 }
 
-void absx() 
-{ //absolute X
+uint8_t imm()
+{
     get_addrmode();
-    uint16_t startpage;
-    cpu->abs_addr = ((uint16_t)cpu_read(cpu->r.pc) | ((uint16_t)cpu_read(cpu->r.pc+1) << 8));
-    startpage = cpu->abs_addr & 0xFF00;
-    cpu->abs_addr += (uint16_t) cpu->r.x;
+	cpu->abs_addr = cpu->r.pc++;	
+	return 0;
+}
 
-    if (startpage != (cpu->abs_addr & 0xFF00)) { //one cycle penlty for page-crossing on some cpu->opcodes
-        penaltyaddr = 1;
+uint8_t zp()
+{
+    get_addrmode();
+	cpu->abs_addr = cpu_read(cpu->r.pc);	
+	cpu->r.pc++;
+	cpu->abs_addr &= 0x00FF;
+	return 0;
+}
+
+uint8_t zpx()
+{
+    get_addrmode();
+	cpu->abs_addr = (cpu_read(cpu->r.pc) + cpu->r.x);
+	cpu->r.pc++;
+	cpu->abs_addr &= 0x00FF;
+	return 0;
+}
+
+uint8_t zpy()
+{
+    get_addrmode();
+	cpu->abs_addr = (cpu_read(cpu->r.pc) + cpu->r.y);
+	cpu->r.pc++;
+	cpu->abs_addr &= 0x00FF;
+	return 0;
+}
+
+uint8_t rel()
+{
+    get_addrmode();
+	cpu->rel_addr = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	if (cpu->rel_addr & 0x80)
+		cpu->rel_addr |= 0xFF00;
+	return 0;
+}
+
+uint8_t abso()
+{
+    get_addrmode();
+	uint16_t lo = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	uint16_t hi = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+
+	cpu->abs_addr = (hi << 8) | lo;
+
+	return 0;
+}
+
+uint8_t absx()
+{
+    get_addrmode();
+	uint16_t lo = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	uint16_t hi = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+
+	cpu->abs_addr = (hi << 8) | lo;
+	cpu->abs_addr += cpu->r.x;
+
+	if ((cpu->abs_addr & 0xFF00) != (hi << 8))
+		return 1;
+	else
+		return 0;	
+}
+
+uint8_t absy()
+{
+    get_addrmode();
+	uint16_t lo = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	uint16_t hi = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+
+	cpu->abs_addr = (hi << 8) | lo;
+	cpu->abs_addr += cpu->r.y;
+
+	if ((cpu->abs_addr & 0xFF00) != (hi << 8))
+		return 1;
+	else
+		return 0;
+}
+
+uint8_t ind() 
+{
+    get_addrmode();
+    uint16_t ptr_lo = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	uint16_t ptr_hi = cpu_read(cpu->r.pc);
+	cpu->r.pc++;
+	uint16_t ptr = (ptr_hi << 8) | ptr_lo;
+
+	if (ptr_lo == 0x00ff) { // Simulate page boundary hardware bug
+		cpu->abs_addr = (cpu_read(ptr & 0xff00) << 8) | cpu_read(ptr + 0);
+	}
+	else { // Behave normally
+		cpu->abs_addr = (cpu_read(ptr + 1) << 8) | cpu_read(ptr + 0);
     }
-
-    cpu->r.pc += 2;
+    return 0;
 }
 
-void absy() 
-{ //absolute Y
-    get_addrmode();
-    uint16_t startpage;
-    cpu->abs_addr = ((uint16_t)cpu_read(cpu->r.pc) | ((uint16_t)cpu_read(cpu->r.pc+1) << 8));
-    startpage = cpu->abs_addr & 0xFF00;
-    cpu->abs_addr += (uint16_t) cpu->r.y;
-
-    if (startpage != (cpu->abs_addr & 0xFF00)) { //one cycle penlty for page-crossing on some cpu->opcodes
-        penaltyaddr = 1;
-    }
-
-    cpu->r.pc += 2;
-}
-
-void imm() 
-{ //immediate
-    get_addrmode();
-    cpu->abs_addr = cpu->r.pc++;
-}
-
-void impl() 
-{ //implied
-    get_addrmode();
-    cpu->value = cpu->r.a;
-}
-
-void ind() 
-{ //indirect
-    get_addrmode();
-    uint16_t eahelp, eahelp2;
-    eahelp = (uint16_t) cpu_read(cpu->r.pc) | (uint16_t)((uint16_t) cpu_read(cpu->r.pc+1) << 8);
-    eahelp2 = (eahelp & 0xFF00) | ((eahelp + 1) & 0x00FF); /* replicate 6502 page-boundary wraparound bug */
-    cpu->abs_addr = (uint16_t) cpu_read(eahelp) | ((uint16_t) cpu_read(eahelp2) << 8);
-    cpu->r.pc += 2;
-}
-
-void idx() 
-{ // (indirect,X)
+uint8_t idx()
+{
     get_addrmode();
 	uint16_t t = cpu_read(cpu->r.pc);
 	cpu->r.pc++;
@@ -240,12 +284,14 @@ void idx()
 	uint16_t hi = cpu_read((uint16_t)(t + (uint16_t)cpu->r.x + 1) & 0x00FF);
 
 	cpu->abs_addr = (hi << 8) | lo;
+	
+	return 0;
 }
 
-void idy() 
-{ // (indirect),Y
+uint8_t idy()
+{
     get_addrmode();
-    uint16_t t = cpu_read(cpu->r.pc);
+	uint16_t t = cpu_read(cpu->r.pc);
 	cpu->r.pc++;
 
 	uint16_t lo = cpu_read(t & 0x00FF);
@@ -254,34 +300,10 @@ void idy()
 	cpu->abs_addr = (hi << 8) | lo;
 	cpu->abs_addr += cpu->r.y;
 	
-	if ((cpu->abs_addr & 0xFF00) != (hi << 8)) { //one cycle penlty for page-crossing on some opcodes
-        penaltyaddr = 1;
-    }
-}
-
-void rel() 
-{ //relative for branch ops (8-bit immediate cpu->value, sign-extended)
-    get_addrmode();
-    cpu->rel_addr = (uint16_t)cpu_read(cpu->r.pc++);
-    if (cpu->rel_addr & 0x80) cpu->rel_addr |= 0xff00;
-}
-
-void zp() 
-{ //zero-page
-    get_addrmode();
-    cpu->abs_addr = (uint16_t)cpu_read((uint16_t)cpu->r.pc++);
-}
-
-void zpx() 
-{ //zero-page X
-    get_addrmode();
-    cpu->abs_addr = ((uint16_t)cpu_read((uint16_t)cpu->r.pc++) + (uint16_t)cpu->r.x) & 0xff; //zero-page wraparound
-}
-
-void zpy() 
-{ //zero-page Y
-    get_addrmode();
-    cpu->abs_addr = ((uint16_t)cpu_read((uint16_t)cpu->r.pc++) + (uint16_t)cpu->r.y) & 0xff; //zero-page wraparound
+	if ((cpu->abs_addr & 0xFF00) != (hi << 8))
+		return 1;
+	else
+		return 0;
 }
 
 static uint16_t getvalue() 
@@ -294,7 +316,7 @@ static uint16_t getvalue()
 
 static void putvalue(uint16_t saveval) 
 {
-    if (optable[cpu->opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
+    if (optable[cpu->opID].addrmode == impl) cpu->r.a = (uint8_t)(saveval & 0xff);
         else cpu_write (cpu->abs_addr, (saveval & 0xff));
 }
 
@@ -396,7 +418,7 @@ void brk() /* Break */
     push16 (++cpu->r.pc); //push next instruction address onto stack
     push8 (cpu->r.status | FLAG_BREAK); //push CPU cpu->r.status to stack
     flag_set(FLAG_INTERRUPT);
-    cpu->r.pc = (uint16_t)cpu_read(0xFFFE) | ((uint16_t)cpu_read(0xFFFF) << 8);
+    cpu->r.pc = (uint16_t)cpu_read(0xfffe) | ((uint16_t)cpu_read(0xffff) << 8);
 }
 
 void bvc() /* Branch on overflow clear */
@@ -900,10 +922,10 @@ struct Instruction optable[256] = {
 
     /* read-mod-write operations */
        /* 0x2              0x6             0xa              0xe  */
-        { nop, impl,2 }, { asl, zp, 5 }, { asl, acc, 2 }, { asl, abso,6 }, { nop, impl,2 }, { asl, zpx, 6 }, { nop, impl, 2 }, { asl, absx, 7 },
-        { nop, impl,2 }, { rol, zp, 5 }, { rol, acc, 2 }, { rol, abso,6 }, { nop, impl,2 }, { rol, zpx, 6 }, { nop, impl, 2 }, { rol, absx, 7 },
-        { nop, impl,2 }, { lsr, zp, 5 }, { lsr, acc, 2 }, { lsr, abso,6 }, { nop, impl,2 }, { lsr, zpx, 6 }, { nop, impl, 2 }, { lsr, absx, 7 },
-        { nop, impl,2 }, { ror, zp, 5 }, { ror, acc, 2 }, { ror, abso,6 }, { nop, impl,2 }, { ror, zpx, 6 }, { nop, impl, 2 }, { ror, absx, 7 },
+        { nop, impl,2 }, { asl, zp, 5 }, { asl, impl,2 }, { asl, abso,6 }, { nop, impl,2 }, { asl, zpx, 6 }, { nop, impl, 2 }, { asl, absx, 7 },
+        { nop, impl,2 }, { rol, zp, 5 }, { rol, impl,2 }, { rol, abso,6 }, { nop, impl,2 }, { rol, zpx, 6 }, { nop, impl, 2 }, { rol, absx, 7 },
+        { nop, impl,2 }, { lsr, zp, 5 }, { lsr, impl,2 }, { lsr, abso,6 }, { nop, impl,2 }, { lsr, zpx, 6 }, { nop, impl, 2 }, { lsr, absx, 7 },
+        { nop, impl,2 }, { ror, zp, 5 }, { ror, impl,2 }, { ror, abso,6 }, { nop, impl,2 }, { ror, zpx, 6 }, { nop, impl, 2 }, { ror, absx, 7 },
         { nop, imm, 2 }, { stx, zp, 3 }, { txa, impl,2 }, { stx, abso,4 }, { nop, impl,2 }, { stx, zpy, 4 }, { txs, impl, 2 }, { nop, absy, 5 },
         { ldx, imm, 2 }, { ldx, zp, 3 }, { tax, impl,2 }, { ldx, abso,4 }, { nop, impl,2 }, { ldx, zpy, 4 }, { tsx, impl, 2 }, { ldx, absy, 4 },
         { nop, imm, 2 }, { dec, zp, 5 }, { dex, impl,2 }, { dec, abso,6 }, { nop, impl,2 }, { dec, zpx, 6 }, { nop, impl, 2 }, { dec, absx, 7 },
@@ -921,7 +943,7 @@ struct Instruction optable[256] = {
         { isc, idx, 8 }, { isc, zp, 5 }, { sbc, imm, 2 }, { isc, abso,6 }, { isc, idy, 8 }, { isc, zpx, 6 }, { isc, absy, 7 }, { isc, absx, 7 }
 };
 
-void nmi6502() 
+void nmi() 
 {
     push16 (cpu->r.pc);
     flag_clear (FLAG_BREAK);
@@ -933,7 +955,7 @@ void nmi6502()
 	cpu->clockticks += 8;
 }
 
-void irq6502() 
+void irq() 
 {
     push16 (cpu->r.pc);
     push8(cpu->r.status);

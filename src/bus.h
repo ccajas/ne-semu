@@ -38,12 +38,13 @@ inline void bus_exec (Bus * const bus, uint32_t const tickcount)
 {
     bus->cpu.clockGoal += tickcount;
     bus->ppu.clockGoal += tickcount * 3;
-    
+
     while (bus->cpu.clockCount < bus->cpu.clockGoal)
     {
-        ppu_clock (&bus->ppu);
-        if (bus->clockCount++ % 3 == 2)
+        if (bus->clockCount++ % 3 == 0)
             cpu_clock (bus);
+
+        ppu_clock (&bus->ppu);
     }
 }
 
@@ -62,9 +63,10 @@ inline void bus_scanline_step (Bus * const bus)
 
     while (bus->ppu.clockCount < bus->ppu.clockGoal)
     {
-        ppu_clock (&bus->ppu);
-        if (bus->clockCount++ % 3 == 2)
+        if (bus->clockCount++ % 3 == 0)
             cpu_clock (bus);
+
+        ppu_clock (&bus->ppu);
     }
 }
 

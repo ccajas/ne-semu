@@ -50,7 +50,6 @@ void rom_load (Bus * const bus, const char* filename)
 
         vc_push_array (&rom->PRGdata, filebuf, rom->mapper.PRGbanks * 16384, sizeof(rom->header));
         vc_push_array (&rom->CHRdata, filebuf, rom->mapper.CHRbanks * 8192,  sizeof(rom->header) + rom->PRGdata.total);
-        printf("%d...\n", rom->CHRdata.total);
 
         rom->mapper.PRG = &rom->PRGdata;
         rom->mapper.CHR = &rom->CHRdata;

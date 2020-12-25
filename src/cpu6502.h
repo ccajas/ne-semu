@@ -28,7 +28,7 @@ CPU6502;
 struct Instruction
 {		
     void    (*op)();
-    void    (*addrmode)();
+    uint8_t (*addrmode)();
     uint8_t ticks;
 };
 
@@ -50,4 +50,4 @@ void cpu_reset       (CPU6502 * const cpu);
 void cpu_clock       (Bus     * const bus);
 void cpu_exec        (CPU6502 * const cpu, uint32_t const tickcount);
 void cpu_disassemble (Bus     * const bus, uint16_t const start, uint16_t const end);
-void nmi6502();
+void nmi();
