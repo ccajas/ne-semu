@@ -2,28 +2,63 @@
 #include <stdlib.h>
 #include "mapper.h"
 
+const uint8_t (*mapperRead[])(Mapper*, uint16_t, uint8_t) = 
+{
+    mapper_NROM_read,
+    mapper_MMC1_read,
+    mapper_UxROM_read
+};
+
+const void (*mapperWrite[])(Mapper*, uint16_t, uint8_t, uint8_t) = 
+{
+    mapper_NROM_write,
+    mapper_MMC1_write,
+    mapper_UxROM_write
+};
+
+struct BaseFigure
+{
+    int type;
+    const char * name;
+};
+
+struct RectangleFigure
+{
+    struct BaseFigure base; // must be first field!
+    int width, height;
+};
+
+struct CircleFigure
+{
+    struct BaseFigure base; // must be first field!
+    float radius;
+};
+
 Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
 {
     Mapper mapper;
-    mapper.properties = NULL;
+    mapper.props = NULL;
 
-    mapper.PRGbanks = header[4];                       /* Total PRG 16KB banks */
+    struct MMC1_properties * MMC1_props;
+
+    struct MapperBase * mapperProps[NUM_MAPPERS] = 
+    {
+        (struct MapperBase*) MMC1_props,
+        (struct MapperBase*) MMC1_props,
+        (struct MapperBase*) MMC1_props
+    };
+
+    mapper.PRGbanks = header[4]; /* Total PRG 16KB banks */
     mapper.CHRbanks = header[5]; /* Total CHR 8KB banks */
 
     printf("Mapper type %d, read %d PRG bank(s) and %d CHR bank(s). (%d KB and %d KB)\n", mapperID, 
         mapper.PRGbanks, mapper.CHRbanks, 
         mapper.PRGbanks * 16, mapper.CHRbanks * 8);
 
-    if (mapperID == 0) 
+    if (mapperID < NUM_MAPPERS)
     {
-        mapper.read  = mapper_NROM_read;
-        mapper.write = mapper_NROM_write;
-    }
-    else if (mapperID == 2) 
-    {
-        printf("Mapped to 2\n");
-        mapper.read  = mapper_UxROM_read;
-        mapper.write = mapper_UxROM_write;
+        mapper.read  = mapperRead[mapperID];
+        mapper.write = mapperWrite[mapperID];
     }
     else 
     {
@@ -63,13 +98,24 @@ void mapper_NROM_write (Mapper * const mapper, uint16_t const address, uint8_t c
     }
 }
 
+/* MMC1 (mapper 1) */
+
+uint8_t mapper_MMC1_read (Mapper * mapper, uint16_t const address, uint8_t ppu)
+{
+    return 0;
+}
+
+void mapper_MMC1_write (Mapper * const mapper, uint16_t const address, uint8_t const data, uint8_t ppu)
+{
+    return;
+}
+
 /* UnROM (mapper 2) */
 
 uint8_t mapper_UxROM_read (Mapper * mapper, uint16_t const address, uint8_t ppu)
 {
     if (ppu)
 	{
-        printf("Reading from %04x\n", address);
 		return mapper_NROM_read (mapper, address, 1);
 	}
 
