@@ -37,7 +37,7 @@ const char * ppu_vs_source =
  
 const char * ppu_fs_source =
 
-"#version 110\n"
+"#version 130\n"
 "varying vec2 TexCoords;\n"
 "uniform sampler2D colorPalette;\n"
 "uniform sampler2D indexed;\n"
@@ -55,19 +55,23 @@ const char * ppu_fs_source =
 "    return color;\n"
 "}\n"
 
+"float mod(float x, float y) { return x - (y * floor( x / y )); }\n"
+
 "vec3 applyScanline(vec3 color)\n"
 "{\n"
 "    vec2 position = (TexCoords.xy);\n"
-"    color *= pow(fract(position.y * 240.0), 0.75);\n"
-"    return color * 1.5;\n"
+"    float px = 1.0/512.0;\n"
+"    position.x += mod(position.y * 240.0, 2.0) * px;\n"
+"    color *= pow(fract(position.x * 256.0), 0.2);\n"
+"    color *= pow(fract(position.y * 240.0), 0.65);\n"
+"    return color * 2.0;\n"
 "}\n"
 
 "void main()\n"
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
-"    vec4 texel   = texture2D(colorPalette, vec2(sampled.r / 4.0, 0.0));\n"
-"    gl_FragColor = vec4(applyScanline(sampled.rgb), 1.0);\n"
+"    gl_FragColor = vec4(applyScanline(sampled.rgb) * tint, 1.0);\n"
 "}\n";
 
 uint32_t quadVAO = 0;
@@ -112,11 +116,11 @@ inline void textures_setup (Scene * scene)
 	scene->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
 
 	/* Disable byte-alignment restriction */
-	//glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	/*glPixelStorei(GL_UNPACK_ALIGNMENT, 1);*/
 
 	/* Create textures */
 	texture_create (&scene->fbufferTexture);
-	texture_init (scene->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
+	texture_init (scene->fbufferTexture, GL_CLAMP_TO_EDGE, GL_LINEAR);
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	texture_create (&scene->pTableTexture);
@@ -167,7 +171,7 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
 
     /* Draw pattern tables */
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 768, 0, 0);
+    mat4x4_translate_in_place (model, 822, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
@@ -176,15 +180,12 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
 	draw_lazy_quad();
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 1024, 0, 0);
+    mat4x4_translate_in_place (model, 822 + 256, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[1]);
-
-    //glBindTexture (GL_TEXTURE_2D, scene->paletteTexture);
-    //glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, ppu->fullPixels);
 
 	draw_lazy_quad();
 
@@ -196,25 +197,26 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void draw_scene (GLFWwindow * window, Scene * scene)
+void draw_scene (GLFWwindow * window, Scene * const scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int32_t width, height;
     glfwGetFramebufferSize (window, &width, &height);
+	uint16_t w = 822, h = 720;
 
     /* Render the PPU framebuffer here */
     glUseProgram(scene->fbufferShader.program);
     mat4x4 p;
-    mat4x4_ortho(p, 0, width, 0, height, 0, 0.1f);
-    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
-
-	uint16_t w = 768, h = 720;
     mat4x4 model;
+
     mat4x4_identity (model);
     mat4x4_scale_aniso (model, model, w, h, 1.0f);
+    mat4x4_ortho (p, 0, width, 0, height, 0, 0.1f);
+
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
 
     glActiveTexture (GL_TEXTURE0);
 
@@ -276,11 +278,11 @@ void draw_debug_ppu (int32_t const width, int32_t const height)
             uint8_t tile = ppu_read(&NES.ppu, (y * 32 + x) + 0x2000);
             sprintf(textbuf + strlen(textbuf), "%02x ", tile);
         }
-        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaa55eeff);
+        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaaffffff);
     }    
 }
 
-void draw_debug (GLFWwindow * window, Timer * timer)
+void draw_debug (GLFWwindow * window, Timer * const timer)
 {
     update_timer (timer, glfwGetTime());
 
@@ -299,24 +301,23 @@ void draw_debug (GLFWwindow * window, Timer * timer)
 
     /* Vendor and framerate info */
     sprintf(textbuf, "Vendor: %s", vendor);
-    text_draw_raised (textbuf, 772.0f, height - 16.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 828.0f, height - 16.0f, 0.5f, -1);
     sprintf(textbuf, "Renderer: %s", renderer);
-    text_draw_raised (textbuf, 772.0f, height - 32.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 828.0f, height - 32.0f, 0.5f, -1);
     sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
-    text_draw_raised (textbuf, 772.0f, height - 48.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 828.0f, height - 48.0f, 0.5f, -1);
 
     /* Debug CPU and RAM */
     sprintf(textbuf, "PC: $%04x %02x %s Cycles: %ld, s: %.3f", 
-        cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount, (float)(NES.ppu.frame / 60.0f));
-    text_draw_raised (textbuf, 772.0f, height - 64.0f, 0.5f, -1);
+        cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount, 
+        ((float)NES.ppu.scanline / 262.0f + NES.ppu.frame) / 60.0f);
+    text_draw_raised (textbuf, 828.0f, height - 64.0f, 0.5f, -1);
 
     sprintf(textbuf, "%s", NES.rom.filename);
-    text_draw_raised (textbuf, 772.0f, height - 80.0f, 0.5f, 0x44ddff);
+    text_draw_raised (textbuf, 828.0f, height - 80.0f, 0.5f, 0x44ddff);
 
     /* CPU registers and storage locations for program/vars */
-    draw_debug_cpu(772.0f, height - 112.0f);
-    //draw_debug_ram(12, height - 24,  16, 16, 0x0);
-    //draw_debug_ram(12, height - 336, 16, 16, 0x8000);
+    draw_debug_cpu(828.0f, height - 112.0f);
 }
 
 #endif
