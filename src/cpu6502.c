@@ -44,7 +44,7 @@ CPU6502 *cpu = &NES.cpu;
         else flag_clear(FLAG_CARRY);\
 }
 
-    /*if (~((n) ^ (uint16_t)(m)) & ((n) ^ (o)) & 0x80) setoverflow();\*/
+/*if (~((n) ^ (uint16_t)(m)) & ((n) ^ (o)) & 0x80) setoverflow();\*/
 #define overflowcalc(n, m, o) { /* n = cpu->result, m = accumulator, o = memory */ \
     uint8_t of = (~((uint16_t)(m) ^ (uint16_t) (o)) & ((uint16_t)(m) ^ (uint16_t)(n)));\
     if (of & 0x80) flag_set(FLAG_OVERFLOW);\
@@ -157,6 +157,13 @@ inline uint8_t pull8()
 }
 
 /* addressing mode functions, calculates effective addresses */
+
+uint8_t acc()
+{
+    get_addrmode();
+	cpu->value = cpu->r.a;
+	return 0;
+}
 
 uint8_t impl()
 {
@@ -308,7 +315,7 @@ uint8_t idy()
 
 static uint16_t getvalue() 
 {
-    if (!(optable[cpu->opID].addrmode == impl))
+    if (!(optable[cpu->opID].addrmode == acc))
 		cpu->value = cpu_read (cpu->abs_addr);
 
 	return cpu->value;
@@ -316,7 +323,7 @@ static uint16_t getvalue()
 
 static void putvalue(uint16_t saveval) 
 {
-    if (optable[cpu->opID].addrmode == impl) cpu->r.a = (uint8_t)(saveval & 0xff);
+    if (optable[cpu->opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
         else cpu_write (cpu->abs_addr, (saveval & 0xff));
 }
 
@@ -922,10 +929,10 @@ struct Instruction optable[256] = {
 
     /* read-mod-write operations */
        /* 0x2              0x6             0xa              0xe  */
-        { nop, impl,2 }, { asl, zp, 5 }, { asl, impl,2 }, { asl, abso,6 }, { nop, impl,2 }, { asl, zpx, 6 }, { nop, impl, 2 }, { asl, absx, 7 },
-        { nop, impl,2 }, { rol, zp, 5 }, { rol, impl,2 }, { rol, abso,6 }, { nop, impl,2 }, { rol, zpx, 6 }, { nop, impl, 2 }, { rol, absx, 7 },
-        { nop, impl,2 }, { lsr, zp, 5 }, { lsr, impl,2 }, { lsr, abso,6 }, { nop, impl,2 }, { lsr, zpx, 6 }, { nop, impl, 2 }, { lsr, absx, 7 },
-        { nop, impl,2 }, { ror, zp, 5 }, { ror, impl,2 }, { ror, abso,6 }, { nop, impl,2 }, { ror, zpx, 6 }, { nop, impl, 2 }, { ror, absx, 7 },
+        { nop, impl,2 }, { asl, zp, 5 }, { asl, acc, 2 }, { asl, abso,6 }, { nop, impl,2 }, { asl, zpx, 6 }, { nop, impl, 2 }, { asl, absx, 7 },
+        { nop, impl,2 }, { rol, zp, 5 }, { rol, acc, 2 }, { rol, abso,6 }, { nop, impl,2 }, { rol, zpx, 6 }, { nop, impl, 2 }, { rol, absx, 7 },
+        { nop, impl,2 }, { lsr, zp, 5 }, { lsr, acc, 2 }, { lsr, abso,6 }, { nop, impl,2 }, { lsr, zpx, 6 }, { nop, impl, 2 }, { lsr, absx, 7 },
+        { nop, impl,2 }, { ror, zp, 5 }, { ror, acc, 2 }, { ror, abso,6 }, { nop, impl,2 }, { ror, zpx, 6 }, { nop, impl, 2 }, { ror, absx, 7 },
         { nop, imm, 2 }, { stx, zp, 3 }, { txa, impl,2 }, { stx, abso,4 }, { nop, impl,2 }, { stx, zpy, 4 }, { txs, impl, 2 }, { nop, absy, 5 },
         { ldx, imm, 2 }, { ldx, zp, 3 }, { tax, impl,2 }, { ldx, abso,4 }, { nop, impl,2 }, { ldx, zpy, 4 }, { tsx, impl, 2 }, { ldx, absy, 4 },
         { nop, imm, 2 }, { dec, zp, 5 }, { dex, impl,2 }, { dec, abso,6 }, { nop, impl,2 }, { dec, zpx, 6 }, { nop, impl, 2 }, { dec, absx, 7 },
