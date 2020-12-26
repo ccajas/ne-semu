@@ -7,8 +7,8 @@
 
 typedef struct App_struct App;
 
-void app_capture_mouse_scroll (App * app, double xOffset, double yOffset);
-void app_capture_drop (App * app, char * paths[]);
+void app_capture_mouse_scroll (App * const app, double xOffset, double yOffset);
+void app_capture_drop         (App * const app, char * paths[]);
 
 void glfw_cb_error (int error, const char* description)
 {
@@ -31,9 +31,8 @@ void glfw_cb_window_size (GLFWwindow * window, int width, int height)
 {
     glViewport (0, 0, width, height);
 }
-
 /*
-inline void create_new_window (
+void glfw_new_window (
     GLFWwindow* windowGLFW, const unsigned int width, const unsigned int height, 
     const char* nameWindow, const unsigned int ww, GLFWmonitor* monitor, GLFWwindow* share)
 {
@@ -49,7 +48,7 @@ inline void create_new_window (
     }
 }*/
 
-GLFWwindow *glfw_setup_window(int width, int height, const char *title)
+GLFWwindow * glfw_new_window(int width, int height, const char *title)
 {
     GLFWwindow* window;
 
@@ -68,7 +67,6 @@ GLFWwindow *glfw_setup_window(int width, int height, const char *title)
     if (!window)
     {
         glfwTerminate();
-        exit(EXIT_FAILURE);
     }
 
     glfwMakeContextCurrent(window);

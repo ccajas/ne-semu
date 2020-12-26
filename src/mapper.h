@@ -38,7 +38,7 @@ uint8_t mapper_NROM_read  (Mapper * mapper, uint16_t const address, uint8_t rw);
 uint8_t mapper_MMC1_read  (Mapper * mapper, uint16_t const address, uint8_t rw);
 uint8_t mapper_UxROM_read (Mapper * mapper, uint16_t const address, uint8_t rw);
 
-const uint8_t (* mapperRead[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t);
+uint8_t (* mapperRead[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t);
 
 /* Concrete model write functions */
 
@@ -46,6 +46,6 @@ void mapper_NROM_write  (Mapper * mapper, uint16_t const address, uint8_t const 
 void mapper_MMC1_write  (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
 void mapper_UxROM_write (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
 
-const void (* mapperWrite[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t, uint8_t);
+void (* mapperWrite[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t, uint8_t);
 
 #endif

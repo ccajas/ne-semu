@@ -71,7 +71,7 @@ inline void app_open_dialog()
 
 void app_init(App * app)
 {
-    app->window = glfw_setup_window (app->resolution[0], app->resolution[1], app->title);
+    app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title);
 
     /* Initialize graphics and emulation system */
     graphics_init (&app->scene);
@@ -154,10 +154,14 @@ void app_update (App * app)
     if (input_new_key (key, lastKey, GLFW_KEY_ESCAPE) || 
         glfwWindowShouldClose(app->window)) app->running = 0;
 
-    /* CPU emulation functions */
+    /* Emulation and debug functions */
     if (input_new_key (key, lastKey, GLFW_KEY_R)) bus_reset (&NES);
     if (input_new_key (key, lastKey, GLFW_KEY_X)) app->emulationRun = ~app->emulationRun;
     if (input_new_key (key, lastKey, GLFW_KEY_Q)) ppu_toggle_debug (&NES.ppu);
+    if (input_new_key (key, lastKey, GLFW_KEY_Y)) {
+        copy_pattern_table (&NES.ppu, 0);
+        copy_pattern_table (&NES.ppu, 1);
+    }
 
     /* Controller buttons */
     NES.controller[0] = 0x00;
@@ -169,15 +173,6 @@ void app_update (App * app)
 	if (input_key (key, GLFW_KEY_DOWN))  NES.controller[0] |= 0x04;
 	if (input_key (key, GLFW_KEY_LEFT))  NES.controller[0] |= 0x02;
 	if (input_key (key, GLFW_KEY_RIGHT)) NES.controller[0] |= 0x01;
-
-    if (NES.controller[0] & 0x80)  printf("A\n");
-    if (NES.controller[0] & 0x40)  printf("B\n");
-    if (NES.controller[0] & 0x20)  printf("Select\n");
-    if (NES.controller[0] & 0x10)  printf("Start\n");
-    if (NES.controller[0] & 0x8)   printf("Up\n");
-    if (NES.controller[0] & 0x4)   printf("Down\n");
-    if (NES.controller[0] & 0x2)   printf("Left\n");
-    if (NES.controller[0] & 0x1)   printf("Right\n");
 
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {

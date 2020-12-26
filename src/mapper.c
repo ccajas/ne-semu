@@ -2,14 +2,14 @@
 #include <stdlib.h>
 #include "mapper.h"
 
-const uint8_t (*mapperRead[])(Mapper*, uint16_t, uint8_t) = 
+uint8_t (*mapperRead[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t) = 
 {
     mapper_NROM_read,
     mapper_MMC1_read,
     mapper_UxROM_read
 };
 
-const void (*mapperWrite[])(Mapper*, uint16_t, uint8_t, uint8_t) = 
+void (*mapperWrite[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t, uint8_t) = 
 {
     mapper_NROM_write,
     mapper_MMC1_write,
@@ -92,7 +92,6 @@ void mapper_NROM_write (Mapper * const mapper, uint16_t const address, uint8_t c
     /* No mapping required. Assumes address is below 0x2000 */
     if (ppu && mapper->CHRbanks == 0) 
     {
-        printf("Writing %02x to %04x\n", data, address);
         mapper->CHR->data[address] = data;
         return;
     }
