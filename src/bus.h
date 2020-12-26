@@ -122,6 +122,18 @@ inline void bus_write (Bus * const bus, uint16_t const address, uint8_t const da
         //printf("Attempting to write to PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data);
 		ppu_register_write (&bus->ppu, address & 0x7, data);
 	}
+    /* Write to OAM DMA register */
+    else if (address == 0x4014)
+    {
+        uint8_t OAMbuffer[256];    
+        uint16_t highByte = (uint16_t)data << 8;
+
+        for (int i = 0; i < sizeof(OAMbuffer); i++) 
+        {
+            OAMbuffer[i] = bus_read (bus, highByte + i);
+        }
+        ppu_oam_dma_write (&bus->ppu, OAMbuffer);
+    }
     else if (address == 0x4016 || address == 0x4017)
     {
         bus->controllerState[address & 1] = bus->controller[address & 1];

@@ -58,7 +58,8 @@ uint8_t ppu_register_read (PPU2C02 * const ppu, uint16_t const address)
 			ppu->latch = 0;
 			break;
 		case OAM_DATA:
-			break; /*Todo */
+			data = ppu->OAMdata[ppu->OAMaddress];
+			break;
 		case PPU_DATA:
 			/* Reads here are delayed, retrieve from the buffer */
 			data = ppu->dataBuffer;
@@ -106,7 +107,8 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 			ppu->OAMaddress = data;
 			break;
 		case OAM_DATA:
-			break; /* Todo */
+			ppu->OAMdata[ppu->OAMaddress] = data;
+			break;
 		case PPU_SCROLL:
 			if (ppu->latch == 0)
 			{
@@ -237,6 +239,14 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	}
 }
 
+void ppu_oam_dma_write (PPU2C02 * const ppu, uint8_t const buffer[])
+{
+	for (int i = 0; i < 256; i++) 
+	{
+        ppu->OAMdata[ppu->OAMaddress++] = (uint8_t)buffer[i];
+    }
+}
+
 void ppu_pixel (PPU2C02 * const ppu, uint16_t x, uint16_t y, uint16_t color)
 {
 	if (x > 256 || y > 240) return;
@@ -249,31 +259,40 @@ void ppu_pixel (PPU2C02 * const ppu, uint16_t x, uint16_t y, uint16_t color)
 
 void ppu_sprites (PPU2C02 * const ppu)
 {
+	if (!ppu->mask.RENDER_SPRITES) return;
+
 	for (int i = 0; i < sizeof (ppu->OAMdata); i += 4) 
 	{
 		uint8_t xPos       = ppu->OAMdata[i + 3];
 		uint8_t yPos       = ppu->OAMdata[i];
         uint8_t tile       = ppu->OAMdata[i + 1];
         uint8_t attributes = ppu->OAMdata[i + 2];
+
+		printf("OAM data for %d: %d %d \n", i / 4, xPos, yPos);
         
-		//uint8_t Vflip = (attributes >> 7 & 1) ? 1 : 0;
-        //uint8_t Hflip = (attributes >> 6 & 1) ? 1 : 0;
+		uint8_t Vflip = (attributes >> 7 & 1) ? 1 : 0;
+        uint8_t Hflip = (attributes >> 6 & 1) ? 1 : 0;
 
         uint8_t palette = attributes & 3;
-        uint8_t pTable  = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
+        uint8_t pTable  = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 0 : 1;
 
 		/* Combine bitplanes and color the pixel */
 		uint16_t offset   = (pTable << 12) + (uint16_t)(tile << 4);
 
-		for (int col = 0; col < 7; col++)
+		for (int row = 0; row < 8; row++)
 		{
-			uint8_t  tile_lsb = ppu_read(ppu, offset + 8) >> (7 - col);
-			uint8_t  tile_msb = ppu_read(ppu, offset)     >> (7 - col);
-			uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
+			for (int col = 0; col < 8; col++)
+			{
+				uint8_t  tile_lsb = ppu_read(ppu, offset + row + 8) >> (7 - col);
+				uint8_t  tile_msb = ppu_read(ppu, offset + row)     >> (7 - col);
+				uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
 
-			uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
+				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 
-			ppu_pixel (ppu, xPos + col, yPos, palColor);
+				uint8_t col1 = (Hflip) ? 7 - col : col;
+				uint8_t row1 = (Vflip) ? 7 - row : row;
+				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
+			}
 		}
 	}
 }

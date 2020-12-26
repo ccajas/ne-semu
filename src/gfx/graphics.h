@@ -71,7 +71,7 @@ const char * ppu_fs_source =
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
-"    gl_FragColor = vec4(applyScanline(sampled.rgb) * tint, 1.0);\n"
+"    gl_FragColor = vec4(sampled.rgb, 1.0);\n"
 "}\n";
 
 uint32_t quadVAO = 0;
@@ -120,7 +120,7 @@ inline void textures_setup (Scene * scene)
 
 	/* Create textures */
 	texture_create (&scene->fbufferTexture);
-	texture_init (scene->fbufferTexture, GL_CLAMP_TO_EDGE, GL_LINEAR);
+	texture_init (scene->fbufferTexture, GL_CLAMP_TO_EDGE, GL_NEAREST);
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
 	texture_create (&scene->pTableTexture);
@@ -171,7 +171,7 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
 
     /* Draw pattern tables */
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 822, 0, 0);
+    mat4x4_translate_in_place (model, 768, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
@@ -180,7 +180,7 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
 	draw_lazy_quad();
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 822 + 256, 0, 0);
+    mat4x4_translate_in_place (model, 768 + 256, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
@@ -204,7 +204,7 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
 
     int32_t width, height;
     glfwGetFramebufferSize (window, &width, &height);
-	uint16_t w = 822, h = 720;
+	uint16_t w = 768, h = 720;
 
     /* Render the PPU framebuffer here */
     glUseProgram(scene->fbufferShader.program);
@@ -301,23 +301,23 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
 
     /* Vendor and framerate info */
     sprintf(textbuf, "Vendor: %s", vendor);
-    text_draw_raised (textbuf, 828.0f, height - 16.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 774.0f, height - 16.0f, 0.5f, -1);
     sprintf(textbuf, "Renderer: %s", renderer);
-    text_draw_raised (textbuf, 828.0f, height - 32.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 774.0f, height - 32.0f, 0.5f, -1);
     sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
-    text_draw_raised (textbuf, 828.0f, height - 48.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 774.0f, height - 48.0f, 0.5f, -1);
 
     /* Debug CPU and RAM */
     sprintf(textbuf, "PC: $%04x %02x %s Cycles: %ld, s: %.3f", 
         cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount, 
         ((float)NES.ppu.scanline / 262.0f + NES.ppu.frame) / 60.0f);
-    text_draw_raised (textbuf, 828.0f, height - 64.0f, 0.5f, -1);
+    text_draw_raised (textbuf, 774.0f, height - 64.0f, 0.5f, -1);
 
     sprintf(textbuf, "%s", NES.rom.filename);
-    text_draw_raised (textbuf, 828.0f, height - 80.0f, 0.5f, 0x44ddff);
+    text_draw_raised (textbuf, 774.0f, height - 80.0f, 0.5f, 0x44ddff);
 
     /* CPU registers and storage locations for program/vars */
-    draw_debug_cpu(828.0f, height - 112.0f);
+    draw_debug_cpu(774.0f, height - 112.0f);
 }
 
 #endif
