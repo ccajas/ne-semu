@@ -261,20 +261,19 @@ void ppu_sprites (PPU2C02 * const ppu)
 {
 	if (!ppu->mask.RENDER_SPRITES) return;
 
+    uint8_t pTable  = (ppu->control.SPRITE_PATTERN_ADDR) ? 1 : 0;
+
 	for (int i = 0; i < sizeof (ppu->OAMdata); i += 4) 
 	{
 		uint8_t xPos       = ppu->OAMdata[i + 3];
 		uint8_t yPos       = ppu->OAMdata[i];
         uint8_t tile       = ppu->OAMdata[i + 1];
         uint8_t attributes = ppu->OAMdata[i + 2];
-
-		printf("OAM data for %d: %d %d \n", i / 4, xPos, yPos);
         
 		uint8_t Vflip = (attributes >> 7 & 1) ? 1 : 0;
         uint8_t Hflip = (attributes >> 6 & 1) ? 1 : 0;
 
-        uint8_t palette = attributes & 3;
-        uint8_t pTable  = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 0 : 1;
+        uint8_t palette = (attributes & 3) | 4;
 
 		/* Combine bitplanes and color the pixel */
 		uint16_t offset   = (pTable << 12) + (uint16_t)(tile << 4);
@@ -287,8 +286,10 @@ void ppu_sprites (PPU2C02 * const ppu)
 				uint8_t  tile_msb = ppu_read(ppu, offset + row)     >> (7 - col);
 				uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
 
-				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
+				/* Index 0 is transparent, skip pixel drawing */
+				if (index == 0) continue;
 
+				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				uint8_t col1 = (Hflip) ? 7 - col : col;
 				uint8_t row1 = (Vflip) ? 7 - row : row;
 				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
