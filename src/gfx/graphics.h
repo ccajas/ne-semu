@@ -48,10 +48,10 @@ const char * ppu_fs_source =
 "    vec2 position = (TexCoords.xy) - vec2(0.5);\n"           
 "    float dist = length(position);\n"
 
-"    float radius = 1.8;\n"
+"    float radius = 1.35;\n"
 "    float softness = 1.0;\n"
 "    float vignette = smoothstep(radius, radius - softness, dist);\n"
-"    color.rgb = color.rgb - (0.95 - vignette);\n"
+"    color.rgb = color.rgb - (0.92 - vignette);\n"
 "    return color;\n"
 "}\n"
 
@@ -63,15 +63,27 @@ const char * ppu_fs_source =
 "    float px = 1.0/512.0;\n"
 "    position.x += mod(position.y * 240.0, 2.0) * px;\n"
 "    color *= pow(fract(position.x * 256.0), 0.2);\n"
-"    color *= pow(fract(position.y * 240.0), 0.65);\n"
-"    return color * 2.0;\n"
+"    color *= pow(fract(position.y * 240.0), 0.5);\n"
+"    return color * 1.75;\n"
 "}\n"
+
+"vec3 blur5(sampler2D image, vec2 uv, vec2 resolution, vec2 direction)\n"
+"{\n"
+"    vec3 color = vec3(0.0);\n"
+"    vec2 off1 = vec2(1.3333333333333333) * direction;\n"
+"    color += texture2D(image, uv).rgb * 0.29411764705882354;\n"
+"    color += texture2D(image, uv + (off1 / resolution)).rgb * 0.35294117647058826;\n"
+"    color += texture2D(image, uv - (off1 / resolution)).rgb * 0.35294117647058826;\n"
+"    return color;\n"
+"}"
 
 "void main()\n"
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
-"    gl_FragColor = vec4(applyScanline(sampled.rgb), 1.0);\n"
+"    sampled      = pow(sampled, vec3(1/1.4));\n"
+"    sampled      = applyScanline(applyVignette(sampled));\n"
+"    gl_FragColor = vec4(sampled * sampled, 1.0);\n"
 "}\n";
 
 uint32_t quadVAO = 0;
@@ -178,7 +190,7 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[0]);
-	draw_lazy_quad();
+	//draw_lazy_quad();
 
     mat4x4_identity (model);
     mat4x4_translate_in_place (model, w + 256, 0, 0);
@@ -188,7 +200,7 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[1]);
 
-	draw_lazy_quad();
+	//draw_lazy_quad();
 
 	/* Bind the palette to the 2nd texture too */
 	glActiveTexture(GL_TEXTURE1);
@@ -307,11 +319,11 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
     text_draw_raised (textbuf, wOffset, height - 16.0f, 0.5f, -1);
     sprintf(textbuf, "Renderer: %s", renderer);
     text_draw_raised (textbuf, wOffset, height - 32.0f, 0.5f, -1);
-    sprintf(textbuf, "Avg. frame time: %f ms", timer->frameTime);
+    sprintf(textbuf, "Frame time: %f ms", timer->frameTime);
     text_draw_raised (textbuf, wOffset, height - 48.0f, 0.5f, -1);
 
     /* Debug CPU and RAM */
-    sprintf(textbuf, "PC: $%04x %02x %s Cycles: %ld", cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount);
+    sprintf(textbuf, "PC: $%04x %02x %s Clk: %ld", cpu->lastpc, cpu->opcode, cpu->lastop, cpu->clockCount);
     text_draw_raised (textbuf, wOffset, height - 64.0f, 0.5f, -1);
     sprintf(textbuf, "Sec: %.3f", ((float)NES.ppu.scanline / 262.0f + NES.ppu.frame) / 60.0f);
     text_draw_raised (textbuf, wOffset, height - 80.0f, 0.5f, -1);
