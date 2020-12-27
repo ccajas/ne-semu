@@ -176,11 +176,11 @@ void app_update (App * app)
 
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {
-        bus_exec (&NES, 23863);
+        bus_exec (&NES, 29829);
     }
     else {
         if (input_key     (key, GLFW_KEY_C))          { bus_scanline_step (&NES); }
-        if (input_new_key (key, lastKey, GLFW_KEY_Z)) { bus_cpu_step (&NES); }
+        if (input_new_key (key, lastKey, GLFW_KEY_Z)) { bus_cpu_tick (&NES); }
     }
 
     /* Update window title */

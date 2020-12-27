@@ -32,7 +32,7 @@ int main (int argc, char** argv)
         if (deltaTime >= limitFPS)
         {
             app_update (&app);
-            deltaTime -= limitFPS;
+            deltaTime = 0;//-= limitFPS;
         }
         app_draw (&app);
     }

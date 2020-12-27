@@ -50,7 +50,7 @@ inline void bus_exec (Bus * const bus, uint32_t const tickcount)
 
 /* Run one instruction from the CPU */
 
-inline void bus_cpu_step (Bus * const bus)
+inline void bus_cpu_tick (Bus * const bus)
 {
     bus_exec (bus, bus->cpu.clockticks + 1);
 }
@@ -124,15 +124,13 @@ inline void bus_write (Bus * const bus, uint16_t const address, uint8_t const da
 	}
     /* Write to OAM DMA register */
     else if (address == 0x4014)
-    {
-        uint8_t OAMbuffer[256];    
-        uint16_t highByte = (uint16_t)data << 8;
+    { 
+        uint16_t DMApage = (uint16_t)data << 8;
 
-        for (int i = 0; i < sizeof(OAMbuffer); i++) 
+        for (int i = 0; i < 256; i++) 
         {
-            OAMbuffer[i] = bus_read (bus, highByte + i);
+            ppu_oam_dma_write (&bus->ppu, bus_read (bus, DMApage + i));
         }
-        ppu_oam_dma_write (&bus->ppu, OAMbuffer);
     }
     else if (address == 0x4016 || address == 0x4017)
     {

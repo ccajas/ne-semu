@@ -137,7 +137,7 @@ uint8_t ppu_read           (PPU2C02 * const ppu, uint16_t address);
 void    ppu_write          (PPU2C02 * const ppu, uint16_t address, uint8_t const data);
 uint8_t ppu_register_read  (PPU2C02 * const ppu, uint16_t const address);
 void    ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t const data);
-void    ppu_oam_dma_write  (PPU2C02 * const ppu, uint8_t const buffer[]);
+void    ppu_oam_dma_write  (PPU2C02 * const ppu, uint8_t const data);
  
 /* Debug and draw functions */
 
