@@ -167,12 +167,12 @@ void app_update (App * app)
     NES.controller[0] = 0x00;
 	if (input_key (key, GLFW_KEY_K))     NES.controller[0] |= 0x80; /* A */
 	if (input_key (key, GLFW_KEY_L))     NES.controller[0] |= 0x40; /* B */
-	if (input_key (key, GLFW_KEY_S))     NES.controller[0] |= 0x20; /* Select */
+	if (input_key (key, GLFW_KEY_G))     NES.controller[0] |= 0x20; /* Select */
 	if (input_key (key, GLFW_KEY_ENTER)) NES.controller[0] |= 0x10; /* Start */
-	if (input_key (key, GLFW_KEY_UP))    NES.controller[0] |= 0x08;
-	if (input_key (key, GLFW_KEY_DOWN))  NES.controller[0] |= 0x04;
-	if (input_key (key, GLFW_KEY_LEFT))  NES.controller[0] |= 0x02;
-	if (input_key (key, GLFW_KEY_RIGHT)) NES.controller[0] |= 0x01;
+	if (input_key (key, GLFW_KEY_W))    NES.controller[0] |= 0x08;
+	if (input_key (key, GLFW_KEY_S))  NES.controller[0] |= 0x04;
+	if (input_key (key, GLFW_KEY_A))  NES.controller[0] |= 0x02;
+	if (input_key (key, GLFW_KEY_D)) NES.controller[0] |= 0x01;
 
     /* Update emulator in real time or step through cycles */
     if (app->emulationRun) {

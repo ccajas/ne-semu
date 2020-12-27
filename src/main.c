@@ -19,8 +19,9 @@ int main (int argc, char** argv)
     /* Time elapsed and tracking */
     double lastTime  = glfwGetTime();
     double deltaTime = 0, currentTime = 0;
-    const double FPS = 75.0f;
+    const double FPS = 60.0f;
     const double limitFPS = 1.0f / FPS;
+    uint8_t update = 0;
 
     /* Main update loop */
     while (app.running)
@@ -32,8 +33,10 @@ int main (int argc, char** argv)
         if (deltaTime >= limitFPS)
         {
             app_update (&app);
-            deltaTime = 0;//-= limitFPS;
+            deltaTime -= limitFPS;
+            update++;
         }
+
         app_draw (&app);
     }
  

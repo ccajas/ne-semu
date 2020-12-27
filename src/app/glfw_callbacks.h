@@ -29,7 +29,14 @@ void glfw_cb_drop (GLFWwindow * window, int count, char * paths[])
 
 void glfw_cb_window_size (GLFWwindow * window, int width, int height)
 {
-    glViewport (0, 0, width, height);
+    if (height % 240 == 0) return;
+
+    uint16_t nHeight = (height / 240) * 240;
+    if (nHeight < 240) nHeight = 240;
+    uint16_t nWidth  = (nHeight / 9) * 16;
+
+    glfwSetWindowSize (window, nWidth, nHeight);
+    glViewport (0, 0, nWidth, nHeight);
 }
 /*
 void glfw_new_window (
@@ -60,7 +67,7 @@ GLFWwindow * glfw_new_window(int width, int height, const char *title)
     glfwWindowHint (GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint (GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint (GLFW_SAMPLES, 4);
-    glfwWindowHint (GLFW_RESIZABLE, GL_FALSE);
+    glfwWindowHint (GLFW_RESIZABLE, GL_TRUE);
     //glfwWindowHint( GLFW_DOUBLEBUFFER, GL_FALSE );
  
     window = glfwCreateWindow(width, height, title, NULL, NULL);
