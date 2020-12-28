@@ -16,8 +16,8 @@ CPU6502 *cpu = &NES.cpu;
 
 /* flag modifier macros */
 
-#define flag_set(f)   cpu->r.status |= f
-#define flag_clear(f) cpu->r.status &= (~f)
+void flag_set(f)   { cpu->r.status |= f; }
+void flag_clear(f) { cpu->r.status &= (~f); }
 
 /* Meta function macros (for disassembly/debugging) */
 
@@ -45,7 +45,7 @@ CPU6502 *cpu = &NES.cpu;
 }
 
 /*if (~((n) ^ (uint16_t)(m)) & ((n) ^ (o)) & 0x80) setoverflow();\*/
-#define overflowcalc(n, m, o) { /* n = cpu->result, m = accumulator, o = memory */ \
+#define overflowcalc(n, m, o) { /* n = result, m = accumulator, o = memory */ \
     uint8_t of = (~((uint16_t)(m) ^ (uint16_t) (o)) & ((uint16_t)(m) ^ (uint16_t)(n)));\
     if (of & 0x80) flag_set(FLAG_OVERFLOW);\
         else flag_clear(FLAG_OVERFLOW);\
@@ -182,47 +182,41 @@ uint8_t imm()
 uint8_t zp()
 {
     get_addrmode();
-	cpu->abs_addr = cpu_read(cpu->r.pc);	
-	cpu->r.pc++;
-	cpu->abs_addr &= 0x00FF;
+	cpu->abs_addr = cpu_read(cpu->r.pc++);
+	cpu->abs_addr &= 0xff;
 	return 0;
 }
 
 uint8_t zpx()
 {
     get_addrmode();
-	cpu->abs_addr = (cpu_read(cpu->r.pc) + cpu->r.x);
-	cpu->r.pc++;
-	cpu->abs_addr &= 0x00FF;
+	cpu->abs_addr = (cpu_read(cpu->r.pc++) + cpu->r.x);
+	cpu->abs_addr &= 0xff;
 	return 0;
 }
 
 uint8_t zpy()
 {
     get_addrmode();
-	cpu->abs_addr = (cpu_read(cpu->r.pc) + cpu->r.y);
-	cpu->r.pc++;
-	cpu->abs_addr &= 0x00FF;
+	cpu->abs_addr = (cpu_read(cpu->r.pc++) + cpu->r.y);
+	cpu->abs_addr &= 0xff;
 	return 0;
 }
 
 uint8_t rel()
 {
     get_addrmode();
-	cpu->rel_addr = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
+	cpu->rel_addr = cpu_read(cpu->r.pc++);
 	if (cpu->rel_addr & 0x80)
-		cpu->rel_addr |= 0xFF00;
+		cpu->rel_addr |= 0xff00;
 	return 0;
 }
 
 uint8_t abso()
 {
     get_addrmode();
-	uint16_t lo = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
-	uint16_t hi = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
+    uint16_t lo = cpu_read(cpu->r.pc++);
+	uint16_t hi = cpu_read(cpu->r.pc++);
 
 	cpu->abs_addr = (hi << 8) | lo;
 
@@ -232,15 +226,13 @@ uint8_t abso()
 uint8_t absx()
 {
     get_addrmode();
-	uint16_t lo = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
-	uint16_t hi = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
+    uint16_t lo = cpu_read(cpu->r.pc++);
+	uint16_t hi = cpu_read(cpu->r.pc++);
 
 	cpu->abs_addr = (hi << 8) | lo;
 	cpu->abs_addr += cpu->r.x;
 
-	if ((cpu->abs_addr & 0xFF00) != (hi << 8))
+	if ((cpu->abs_addr & 0xff00) != (hi << 8))
 		return 1;
 	else
 		return 0;	
@@ -249,15 +241,13 @@ uint8_t absx()
 uint8_t absy()
 {
     get_addrmode();
-	uint16_t lo = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
-	uint16_t hi = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
+    uint16_t lo = cpu_read(cpu->r.pc++);
+	uint16_t hi = cpu_read(cpu->r.pc++);
 
 	cpu->abs_addr = (hi << 8) | lo;
 	cpu->abs_addr += cpu->r.y;
 
-	if ((cpu->abs_addr & 0xFF00) != (hi << 8))
+	if ((cpu->abs_addr & 0xff00) != (hi << 8))
 		return 1;
 	else
 		return 0;
@@ -266,16 +256,14 @@ uint8_t absy()
 uint8_t ind() 
 {
     get_addrmode();
-    uint16_t ptr_lo = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
-	uint16_t ptr_hi = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
-	uint16_t ptr = (ptr_hi << 8) | ptr_lo;
+    uint16_t lo = cpu_read(cpu->r.pc++);
+	uint16_t hi = cpu_read(cpu->r.pc++);
+	uint16_t ptr = (hi << 8) | lo;
 
-	if (ptr_lo == 0x00ff) { // Simulate page boundary hardware bug
+	if (lo == 0x00ff) { /* Simulate page boundary hardware bug */
 		cpu->abs_addr = (cpu_read(ptr & 0xff00) << 8) | cpu_read(ptr + 0);
 	}
-	else { // Behave normally
+	else {
 		cpu->abs_addr = (cpu_read(ptr + 1) << 8) | cpu_read(ptr + 0);
     }
     return 0;
@@ -284,11 +272,10 @@ uint8_t ind()
 uint8_t idx()
 {
     get_addrmode();
-	uint16_t t = cpu_read(cpu->r.pc);
-	cpu->r.pc++;
+	uint16_t t = cpu_read(cpu->r.pc++);
 
-	uint16_t lo = cpu_read((uint16_t)(t + (uint16_t)cpu->r.x) & 0x00FF);
-	uint16_t hi = cpu_read((uint16_t)(t + (uint16_t)cpu->r.x + 1) & 0x00FF);
+	uint16_t lo = cpu_read((uint16_t)(t + (uint16_t)cpu->r.x) & 0xff);
+	uint16_t hi = cpu_read((uint16_t)(t + (uint16_t)cpu->r.x + 1) & 0xff);
 
 	cpu->abs_addr = (hi << 8) | lo;
 	
@@ -301,8 +288,8 @@ uint8_t idy()
 	uint16_t t = cpu_read(cpu->r.pc);
 	cpu->r.pc++;
 
-	uint16_t lo = cpu_read(t & 0x00FF);
-	uint16_t hi = cpu_read((t + 1) & 0x00FF);
+	uint16_t lo = cpu_read(t & 0x00ff);
+	uint16_t hi = cpu_read((t + 1) & 0x00ff);
 
 	cpu->abs_addr = (hi << 8) | lo;
 	cpu->abs_addr += cpu->r.y;
@@ -316,11 +303,11 @@ uint8_t idy()
 static uint16_t getvalue() 
 {
     if (!(optable[cpu->opID].addrmode == acc))
-		cpu->value = cpu_read (cpu->abs_addr);
+		return cpu_read (cpu->abs_addr);
 
 	return cpu->value;
 }
-
+    
 static void putvalue(uint16_t saveval) 
 {
     if (optable[cpu->opID].addrmode == acc) cpu->r.a = (uint8_t)(saveval & 0xff);
@@ -333,15 +320,15 @@ void adc() /* Add with carry */
 {
     get_opname(); 
 	cpu->value = getvalue();
-	cpu->result = (uint16_t) cpu->r.a + (uint16_t) cpu->value + 
+	uint16_t result = (uint16_t) cpu->r.a + (uint16_t) cpu->value + 
         (uint16_t)(cpu->r.status & FLAG_CARRY);
 	
-    carrycalc(cpu->result);
-    zerocalc(cpu->result);
-    overflowcalc(cpu->result, cpu->r.a, cpu->value);
-    signcalc(cpu->result);
+    carrycalc(result);
+    zerocalc(result);
+    overflowcalc(result, cpu->r.a, cpu->value);
+    signcalc(result);
 	
-	cpu->r.a = cpu->result & 0xff;
+	cpu->r.a = result & 0xff;
 	penaltyop = 1;
 }
 
@@ -349,12 +336,12 @@ void and() /* AND (with accumulator) */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t) cpu->r.a & cpu->value;
+    uint16_t result = (uint16_t) cpu->r.a & cpu->value;
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    saveaccum(cpu->result);
+    saveaccum(result);
     penaltyop = 1;
 }
 
@@ -362,13 +349,13 @@ void asl() /* Arithmetic shift left */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t)cpu->value << 1;
+    uint16_t result = (uint16_t)cpu->value << 1;
 
-    carrycalc(cpu->result);
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    carrycalc(result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void bcc() /* Branch on carry clear */
@@ -393,9 +380,7 @@ void bit() /* Test bits */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t)(cpu->r.a & cpu->value);
-
-    zerocalc(cpu->result);
+    zerocalc((uint16_t)(cpu->r.a & cpu->value));
 
     /* sign and overflow mask */
     cpu->r.status = (cpu->r.status & 0x3f) | (uint8_t)(cpu->value & 0xc0);
@@ -469,51 +454,48 @@ void cmp() /* Compare (with accumulator) */
     get_opname();
     penaltyop = 1;
     cpu->value = getvalue();
-    cpu->result = (uint16_t) cpu->r.a - (uint16_t) cpu->value;
 
     if (cpu->r.a >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
         else flag_clear(FLAG_CARRY);
     if (cpu->r.a == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
         else flag_clear(FLAG_ZERO);
-    signcalc(cpu->result);
+    signcalc((uint16_t) cpu->r.a - cpu->value);
 }
 
 void cpx() /* Compare with X */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t) cpu->r.x - cpu->value;
 
     if (cpu->r.x >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
         else flag_clear(FLAG_CARRY);
     if (cpu->r.x == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
         else flag_clear(FLAG_ZERO);
-    signcalc(cpu->result);
+    signcalc((uint16_t) cpu->r.x - cpu->value);
 }
 
 void cpy() /* Compare with Y */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t)cpu->r.y - cpu->value;
 
     if (cpu->r.y >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
         else flag_clear(FLAG_CARRY);
     if (cpu->r.y == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
         else flag_clear(FLAG_ZERO);
-    signcalc(cpu->result);
+    signcalc((uint16_t)cpu->r.y - cpu->value);
 }
 
 void dec() /* Decrement */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = cpu->value - 1;
+    uint16_t result = cpu->value - 1;
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void dex() /* Decrement X */
@@ -538,12 +520,12 @@ void eor() /* Exclusive OR (with accumulator) */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (uint16_t) cpu->r.a ^ cpu->value;
+    uint16_t result = (uint16_t) cpu->r.a ^ cpu->value;
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    saveaccum(cpu->result);
+    saveaccum(result);
     penaltyop = 1;  
 }
 
@@ -551,12 +533,12 @@ void inc() /* Increment */
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = cpu->value + 1;
+    uint16_t result = cpu->value + 1;
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void inx() /* Increment X */
@@ -617,7 +599,7 @@ void ldy() /* Load Y */
     get_opname();
     penaltyop = 1;
     cpu->value = getvalue();
-    cpu->r.y = (uint8_t)(cpu->value & 0x00FF);
+    cpu->r.y = (uint8_t)(cpu->value & 0x00ff);
 
     zerocalc(cpu->r.y);
     signcalc(cpu->r.y);
@@ -627,7 +609,7 @@ void lsr()
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = cpu->value >> 1;
+    uint16_t result = cpu->value >> 1;
 
     if (cpu->value & 1) {
         flag_set(FLAG_CARRY);
@@ -635,10 +617,10 @@ void lsr()
         flag_clear(FLAG_CARRY);
     }
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void nop() 
@@ -661,12 +643,12 @@ void ora()
     get_opname();
     penaltyop = 1;
     cpu->value = getvalue();
-    cpu->result = (uint16_t) cpu->r.a | cpu->value;
+    uint16_t result = (uint16_t) cpu->r.a | cpu->value;
 
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    saveaccum(cpu->result);
+    saveaccum(result);
 }
 
 void pha() 
@@ -703,27 +685,27 @@ void rol()
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (cpu->value << 1) | (cpu->r.status & FLAG_CARRY);
+    uint16_t result = (cpu->value << 1) | (cpu->r.status & FLAG_CARRY);
 
-    carrycalc(cpu->result);
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    carrycalc(result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void ror() 
 {
     get_opname();
     cpu->value = getvalue();
-    cpu->result = (cpu->value >> 1) | ((cpu->r.status & FLAG_CARRY) << 7);
+    uint16_t result = (cpu->value >> 1) | ((cpu->r.status & FLAG_CARRY) << 7);
 
     if (cpu->value & 1) flag_set(FLAG_CARRY);
         else flag_clear(FLAG_CARRY);
-    zerocalc(cpu->result);
-    signcalc(cpu->result);
+    zerocalc(result);
+    signcalc(result);
 
-    putvalue(cpu->result);
+    putvalue(result);
 }
 
 void rti() 
@@ -746,14 +728,14 @@ void sbc() /* Subtract with carry */
     get_opname();
 
     cpu->value = (uint16_t)getvalue() ^ 0xff;
-    cpu->result = (uint16_t) cpu->r.a + cpu->value + (uint16_t)(cpu->r.status & FLAG_CARRY);
+    uint16_t result = cpu->r.a + cpu->value + (cpu->r.status & FLAG_CARRY);
 
-    carrycalc(cpu->result);
-    zerocalc(cpu->result);
-    overflowcalc(cpu->result, cpu->r.a, cpu->value);
-    signcalc(cpu->result);
+    carrycalc(result);
+    zerocalc(result);
+    overflowcalc(result, cpu->r.a, cpu->value);
+    signcalc(result);
 
-    saveaccum(cpu->result);
+    saveaccum(result);
     penaltyop = 1;
 }
 
@@ -972,6 +954,8 @@ void irq()
 	cpu->clockticks += 7;
 }
 
+#ifdef OPTABLES
+
 void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 {
     uint16_t addr = start;
@@ -1076,3 +1060,5 @@ void cpu_disassemble (Bus * const bus, uint16_t const start, uint16_t const end)
 
     cpu->debug = 0;
 }
+
+#endif

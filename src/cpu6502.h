@@ -28,7 +28,7 @@ typedef struct CPU6502_struct
 
     /* Helper vars */
     uint64_t instructions, clockCount, clockGoal;
-    uint16_t lastpc, abs_addr, rel_addr, value, result;
+    uint16_t lastpc, abs_addr, rel_addr, value;
     uint8_t  opcode;
     uint8_t  clockticks;
 
