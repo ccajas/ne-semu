@@ -332,9 +332,9 @@ static void putvalue(uint16_t saveval)
 void adc() /* Add with carry */
 {
     get_opname(); 
-
 	cpu->value = getvalue();
-	cpu->result = (uint16_t) cpu->r.a + (uint16_t) cpu->value + (uint16_t)(cpu->r.status & FLAG_CARRY);
+	cpu->result = (uint16_t) cpu->r.a + (uint16_t) cpu->value + 
+        (uint16_t)(cpu->r.status & FLAG_CARRY);
 	
     carrycalc(cpu->result);
     zerocalc(cpu->result);
@@ -348,7 +348,6 @@ void adc() /* Add with carry */
 void and() /* AND (with accumulator) */
 {
     get_opname();
-    penaltyop = 1;
     cpu->value = getvalue();
     cpu->result = (uint16_t) cpu->r.a & cpu->value;
 
@@ -356,6 +355,7 @@ void and() /* AND (with accumulator) */
     signcalc(cpu->result);
 
     saveaccum(cpu->result);
+    penaltyop = 1;
 }
 
 void asl() /* Arithmetic shift left */

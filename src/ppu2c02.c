@@ -287,7 +287,7 @@ void ppu_background (PPU2C02 * const ppu)
 				tile_msb >>= 1;
 
 				/* Index 0 is transparent, skip pixel drawing */
-				ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, 0);
+				//ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, 0);
 				if (index == 0) continue;
 
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
@@ -334,7 +334,7 @@ void ppu_sprites (PPU2C02 * const ppu)
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				uint8_t col1 = (Hflip) ? col : 7 - col;
 				uint8_t row1 = (Vflip) ? 7 - row : row;
-				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
+				ppu_pixel (ppu, xPos + col1, yPos + row1 + 1, palColor);
 			}
 		}
 	}
@@ -423,17 +423,17 @@ void ppu_clock (PPU2C02 * const ppu)
 		}
 	}
 
+	ppu_background_pixel (ppu, ppu->cycle, ppu->scanline);
+
 	if (ppu->scanline == 242 && ppu->cycle == 1)
 	{
 		ppu->status.VERTICAL_BLANK = 1;
 		if (ppu->control.ENABLE_NMI) 
 			ppu->nmi = 1;
 
-		ppu_background (ppu);
+		//ppu_background (ppu);
 		ppu_sprites (ppu);
 	}
-
-	//ppu_background_pixel (ppu, ppu->cycle, ppu->scanline);
 
 	/* General scan/cycle counting */
 	ppu->clockCount++;
