@@ -58,7 +58,7 @@ void rom_load (Bus * const bus, const char* filename)
         printf("capacity: %d %d \n", vc_size(&rom->PRGdata), vc_size(&rom->CHRdata));
 
         /* Test disassembly output */
-        cpu_disassemble (bus, bus->cpu.r.pc, bus->cpu.r.pc + 0x80);
+        //cpu_disassemble (bus, bus->cpu.r.pc, bus->cpu.r.pc + 0x80);
     }
 
     free (filebuf);

@@ -1,3 +1,6 @@
+#ifndef PPU_H
+#define PPU_H
+
 #include <stdio.h>
 #include <stdint.h>
 #include "mapper.h"
@@ -118,11 +121,6 @@ typedef struct PPU2C02_Struct
 }
 PPU2C02;
 
-/* Constants and 2C03/2C05 color palette */
-
-extern const uint16_t palette2C03[64];
-extern const uint32_t PPU_CYCLES_PER_FRAME;
-
 /* Forward declare ROM */
 
 typedef struct NESrom_struct NESrom;
@@ -146,3 +144,5 @@ void copy_pattern_table    (PPU2C02 * const ppu, uint8_t const i);
 
 inline uint8_t ppu_show_debug   (PPU2C02 * const ppu) { return ppu->debug; }
 inline void    ppu_toggle_debug (PPU2C02 * const ppu) { ppu->debug = ~ppu->debug; }
+
+#endif

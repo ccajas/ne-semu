@@ -1,3 +1,6 @@
+#ifndef BUS_H
+#define BUS_H
+
 #include <stdio.h>
 #include <stdint.h>
 #include "cpu6502.h"
@@ -145,3 +148,5 @@ inline void bus_write (Bus * const bus, uint16_t const address, uint8_t const da
         }
     }
 }
+
+#endif
