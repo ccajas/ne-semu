@@ -1,12 +1,12 @@
 #ifndef APP_H
 #define APP_H
 
-#include "bus.h"
-#include "gfx/graphics.h"
-#include "app/timer.h"
-#include "app/glfw_callbacks.h"
-#include "app/inputstates.h"
-#include "../nfd/src/nfd.h"
+#include "../bus.h"
+#include "../gfx/graphics.h"
+#include "timer.h"
+#include "glfw_callbacks.h"
+#include "inputstates.h"
+#include "../../nfd/src/nfd.h"
 
 typedef void (*appEventPtr)();
 

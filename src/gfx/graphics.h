@@ -1,7 +1,7 @@
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#include "../app/timer.h"
+#include "../glfw/timer.h"
 #include "text.h"
 #include "texture.h"
 
