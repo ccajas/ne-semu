@@ -8,7 +8,7 @@ nfd_src  =$(NFD)nfd_zenity.c $(NFD)nfd_common.c
 glfw_src =$(wildcard src/glfw/*.c)
 gfx_src  =$(wildcard src/gl/*.c)
 
-src = $(wildcard src/*.c) $(gfx_src) $(glfw_src) $(nfd_src)
+src = $(wildcard src/*.c) $(gfx_src) $(glfw_src)
 src_min = src/main.c src/gl/glad.c
 src_core =  src/cpu6502.c src/ppu2c02.c src/mapper.c src/rom.c src/palette.c 
 lib = $(csrc:.c=.a)

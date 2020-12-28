@@ -103,6 +103,8 @@ void draw_lazy_quad()
     glBindVertexArray(0);
 }
 
+#ifdef PPU_DEBUG
+
 void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight)
 {
     mat4x4 model;
@@ -136,6 +138,26 @@ void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHe
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void draw_debug_ppu (int32_t const width, int32_t const height)
+{
+    /* Draw PPU graphical output */
+    text_begin (width, height);
+
+    char textbuf[256];
+    for (int y = 0; y < 30; y++)
+    {
+        sprintf(textbuf, " ");
+        for (int x = 0; x < 32; x++)
+        {
+            uint8_t tile = ppu_read(&NES.ppu, (y * 32 + x) + 0x2000);
+            sprintf(textbuf + strlen(textbuf), "%02x ", tile);
+        }
+        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaaffffff);
+    }    
+}
+
+#endif
+
 void draw_scene (GLFWwindow * window, Scene * const scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
@@ -164,7 +186,7 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
 	draw_lazy_quad();
 
-    ppu_debug (scene, width, height);
+    //ppu_debug (scene, width, height);
 }
 
 void draw_debug (GLFWwindow * window, Timer * const timer)
@@ -176,9 +198,11 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
 	uint16_t wOffset = height / 15 * 16;
     wOffset += 4;
 
+#if PPU_DEBUG
     /* Graphical PPU debug */
     if (ppu_show_debug (&NES.ppu))
         draw_debug_ppu (width, height);
+#endif
 
     /* Setup text */
     char textbuf[256];     
@@ -204,22 +228,4 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
 
     /* CPU registers and storage locations for program/vars */
     draw_debug_cpu(wOffset, height - 112.0f);
-}
-
-void draw_debug_ppu (int32_t const width, int32_t const height)
-{
-    /* Draw PPU graphical output */
-    text_begin (width, height);
-
-    char textbuf[256];
-    for (int y = 0; y < 30; y++)
-    {
-        sprintf(textbuf, " ");
-        for (int x = 0; x < 32; x++)
-        {
-            uint8_t tile = ppu_read(&NES.ppu, (y * 32 + x) + 0x2000);
-            sprintf(textbuf + strlen(textbuf), "%02x ", tile);
-        }
-        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaaffffff);
-    }    
 }

@@ -7,6 +7,28 @@ typedef void (*appEventPtr)();
 
 typedef struct App_struct
 {
+    /* Application commands and game inputs to be mapped by API */
+    struct appInputs 
+    {
+        uint16_t APP_OPEN_FILE,
+            APP_MAXIMIZE,
+            APP_EXIT,
+            EMULATION_TOGGLE,
+            EMULATION_STEP,
+            EMULATION_SCANLINE,
+            EMULATION_DEBUG,
+            EMULATION_RESET,
+            BUTTON_A,
+            BUTTON_B,
+            BUTTON_SELECT,
+            BUTTON_START,
+            BUTTON_UP,
+            BUTTON_DOWN,
+            BUTTON_LEFT,
+            BUTTON_RIGHT;
+    }
+    inputs;
+
     /* Default event handlers */
     appEventPtr onScroll, onDrop, onWindowResize;
 
@@ -41,8 +63,9 @@ void app_open_dialog();
 void app_init         (App *);
 void app_free         (App *);
 
+void app_init_inputs  (App *);
 void app_handle_input (App *);
 void app_update       (App *);
 void app_draw         (App *);
 
-uint8_t app_controller_state (KeyboardState * const key);
+uint8_t app_controller_state (KeyboardState * const, struct appInputs * const);

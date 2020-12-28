@@ -16,8 +16,8 @@ CPU6502 *cpu = &NES.cpu;
 
 /* flag modifier macros */
 
-void flag_set(f)   { cpu->r.status |= f; }
-void flag_clear(f) { cpu->r.status &= (~f); }
+#define flag_set(f)   cpu->r.status |= f
+#define flag_clear(f) cpu->r.status &= (~f)
 
 /* Meta function macros (for disassembly/debugging) */
 
