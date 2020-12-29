@@ -25,14 +25,15 @@ extern const char * ppu_vs_source;
 extern const char * ppu_fs_source;
 
 extern uint32_t quadVAO;
-extern uint32_t quadVBO;
 
-extern const float quadVertices[];
+#ifdef PPU_DEBUG
 
 void ppu_debug  (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight);
 void draw_scene (GLFWwindow * window, Scene * const scene);
 
-void draw_lazy_quad();
+#endif
+
+void draw_lazy_quad (const float width, const float height);
 
 inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t height, GLenum filter, const void * data)
 {
@@ -73,7 +74,7 @@ inline void graphics_init (Scene * scene)
 	free (pixels);
 
 	/* Create main textures */
-    texture_setup (&scene->fbufferTexture, 256, 240, GL_LINEAR, NULL);
+    texture_setup (&scene->fbufferTexture, 256, 240, GL_NEAREST, NULL);
     texture_setup (&scene->pTableTexture,  256, 256, GL_NEAREST, NULL);
     texture_setup (&scene->paletteTexture, 64,  1, GL_NEAREST, pixels);
 

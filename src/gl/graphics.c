@@ -11,7 +11,7 @@ const char * ppu_vs_source =
 
 "void main()\n"
 "{\n"
-"    vec4 localPos = model * vec4(vertex.xyz, 1.0);"
+"    vec4 localPos = model * vec4(vertex.xy, 1.0, 1.0);"
 "    gl_Position = projection * vec4(localPos.xy, 0.0, 1.0);\n"
 "    TexCoords = texture.xy;\n"
 "}\n";
@@ -29,10 +29,10 @@ const char * ppu_fs_source =
 "    vec2 position = (TexCoords.xy) - vec2(0.5);\n"           
 "    float dist = length(position);\n"
 
-"    float radius = 1.35;\n"
+"    float radius = 1.3;\n"
 "    float softness = 1.0;\n"
 "    float vignette = smoothstep(radius, radius - softness, dist);\n"
-"    color.rgb = color.rgb - (0.85 - vignette);\n"
+"    color.rgb = color.rgb - (0.8 - vignette);\n"
 "    return color;\n"
 "}\n"
 
@@ -43,7 +43,7 @@ const char * ppu_fs_source =
 "    vec2 position = (TexCoords.xy);\n"
 "    float px = 1.0/512.0;\n"
 "    position.x += mod(position.y * 240.0, 2.0) * px;\n"
-"    color *= pow(fract(position.x * 256.0), 0.2);\n"
+"    color *= pow(fract(position.x * 256.0), 0.3);\n"
 "    color *= pow(fract(position.y * 240.0), 0.5);\n"
 "    return color * 1.75;\n"
 "}\n"
@@ -58,20 +58,20 @@ const char * ppu_fs_source =
 "}\n";
 
 uint32_t quadVAO = 0;
-uint32_t quadVBO = 0;
 
-const float quadVertices[] = {
-
-     0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
-     0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
-     1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
-     1.0f, 0.0f, 0.0f, 1.0f, 1.0f,
-};
-
-void draw_lazy_quad()
+void draw_lazy_quad(const float width, const float height)
 {
     if (quadVAO == 0)
     {
+        uint32_t quadVBO = 0;
+        const float quadVertices[] = {
+
+            0.0f,  height, 0.0f, 0.0f, 0.0f,
+            0.0f,  0.0f,   0.0f, 0.0f, 1.0f,
+            width, height, 0.0f, 1.0f, 0.0f,
+            width, 0.0f,   0.0f, 1.0f, 1.0f,
+        };
+
         glGenVertexArrays(1, &quadVAO);
         glGenBuffers(1, &quadVBO);
         glBindVertexArray(quadVAO);
@@ -159,24 +159,22 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
 
     /* Render the PPU framebuffer here */
     glUseProgram(scene->fbufferShader.program);
-    mat4x4 p;
     mat4x4 model;
+    mat4x4 projection;
 
     mat4x4_identity (model);
-    mat4x4_scale_aniso (model, model, w, height, 1.0f);
-    mat4x4_ortho (p, 0, width, 0, height, 0, 0.1f);
+    mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
+    mat4x4_scale_aniso (model, model, width, height, 1.0f);
 
-    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
-    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) p);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) projection);
 
     glActiveTexture (GL_TEXTURE0);
 
     /* Draw framebuffer */
     glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
-	draw_lazy_quad();
-
-    //ppu_debug (scene, width, height);
+	draw_lazy_quad(1.0f, 1.0f);
 }
 
 void draw_debug (GLFWwindow * window, Timer * const timer)

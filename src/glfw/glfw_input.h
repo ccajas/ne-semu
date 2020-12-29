@@ -5,7 +5,7 @@ void app_init_inputs (App * app)
     app->inputs.EVENT_OPEN_FILE     = GLFW_KEY_O;
     app->inputs.EVENT_MAXIMIZE      = GLFW_KEY_F11;
     app->inputs.EVENT_EXIT          = GLFW_KEY_ESCAPE;
-    app->inputs.EMULATION_TOGGLE    = GLFW_KEY_X;
+    app->inputs.EMULATION_PAUSE    = GLFW_KEY_X;
     app->inputs.EMULATION_STEP      = GLFW_KEY_Z;
     app->inputs.EMULATION_SCANLINE  = GLFW_KEY_C;
     app->inputs.EMULATION_RESET     = GLFW_KEY_R;
@@ -44,7 +44,7 @@ void app_init(App * app)
     app->timer.previousTime = glfwGetTime();
 
     app->running = 1;
-    app->emulationRun = 0;
+    app->paused = 1;
 }
 
 void app_query_input (App * app)
@@ -91,4 +91,22 @@ void app_query_input (App * app)
 
     app->mouseState.x = (int)xPos;
     app->mouseState.y = (int)yPos;
+}
+
+void app_free (App * const app)
+{
+    glfwDestroyWindow(app->window);
+    glfwTerminate();
+    exit(EXIT_SUCCESS);
+}
+
+/* Callback wrappers */
+
+void app_toggle_maximize (App * const app)
+{
+    if (!glfwGetWindowAttrib(app->window, GLFW_MAXIMIZED)) {
+        glfwMaximizeWindow (app->window);
+    } else {
+        glfwRestoreWindow (app->window);
+    }   
 }

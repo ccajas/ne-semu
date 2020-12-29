@@ -35,9 +35,10 @@ void app_update (App * app)
         glfwWindowShouldClose(app->window)) app->running = 0;
 
     /* Emulation and debug functions */
-    if (input_new_key (key, lastKey, input->EMULATION_TOGGLE)) {
-        printf("Emulation toggle\n");
-        app->emulationRun = !app->emulationRun;
+    if (input_new_key (key, lastKey, input->EMULATION_PAUSE)) 
+    {
+        app->paused = !app->paused;
+        printf("Emulator %s\n", app->paused ? "paused" : "running");
     }
     if (input_new_key (key, lastKey, input->EMULATION_DEBUG))  ppu_toggle_debug (&NES.ppu);
     if (input_new_key (key, lastKey, input->EMULATION_RESET))  bus_reset (&NES);
@@ -46,7 +47,7 @@ void app_update (App * app)
     NES.controller[0] = app_controller_state (key, input);
 
     /* Update emulator in real time or step through cycles */
-    if (app->emulationRun) {
+    if (!app->paused) {
         bus_exec (&NES, 29829);
     }
     else {
@@ -73,23 +74,7 @@ void app_draw (App * const app)
     glfwSwapBuffers(app->window);
 }
 
-void app_free (App * const app)
-{
-    glfwDestroyWindow(app->window);
-    glfwTerminate();
-    exit(EXIT_SUCCESS);
-}
-
 /* Callback wrappers */
-
-void app_toggle_maximize (App * const app)
-{
-    if (!glfwGetWindowAttrib(app->window, GLFW_MAXIMIZED)) {
-        glfwMaximizeWindow (app->window);
-    } else {
-        glfwRestoreWindow (app->window);
-    }   
-}
 
 void app_capture_mouse_scroll (App * const app, double xOffset, double yOffset)
 {
@@ -103,7 +88,7 @@ void app_capture_drop (App * app, char * paths[])
 
     /* Attempt to load the file */
     if (rom_load (&NES, app->dropPath))
-        app->emulationRun = 1;
+        app->paused = 0;
 }
 
 void app_open_dialog(App * const app)
@@ -114,6 +99,6 @@ void app_open_dialog(App * const app)
     if (result == NFD_OKAY) 
     {
         if (rom_load (&NES, outPath)) 
-            app->emulationRun = 1;
+            app->paused = 0;
     }
 }

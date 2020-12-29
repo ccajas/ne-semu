@@ -13,7 +13,7 @@ typedef struct App_struct
         uint16_t EVENT_OPEN_FILE,
             EVENT_MAXIMIZE,
             EVENT_EXIT,
-            EMULATION_TOGGLE,
+            EMULATION_PAUSE,
             EMULATION_STEP,
             EMULATION_SCANLINE,
             EMULATION_DEBUG,
@@ -44,7 +44,7 @@ typedef struct App_struct
     MouseState    mouseState,    lastMouseState;
     KeyboardState keyboardState, lastKeyboardState;
     uint16_t running;
-    uint8_t  emulationRun;
+    uint8_t  paused;
     uint8_t  ppuDebug;
 
     /* App assets */
