@@ -10,9 +10,9 @@ typedef struct App_struct
     /* Application commands and game inputs to be mapped by API */
     struct appInputs 
     {
-        uint16_t APP_OPEN_FILE,
-            APP_MAXIMIZE,
-            APP_EXIT,
+        uint16_t EVENT_OPEN_FILE,
+            EVENT_MAXIMIZE,
+            EVENT_EXIT,
             EMULATION_TOGGLE,
             EMULATION_STEP,
             EMULATION_SCANLINE,
@@ -56,9 +56,9 @@ App;
 /* Callback wrappers */
 
 void app_toggle_maximize      (App * const);
-void app_capture_mouse_scroll (App *, double xOffset, double yOffset);
-void app_capture_drop         (App *, char * paths[]);
-void app_open_dialog();
+void app_capture_mouse_scroll (App * const, double xOffset, double yOffset);
+void app_capture_drop         (App * const, char * paths[]);
+void app_open_dialog          (App * const);
 
 void app_init         (App *);
 void app_free         (App *);

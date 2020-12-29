@@ -78,7 +78,7 @@ int main (int argc, char** argv)
         .onScroll       = glfw_cb_scroll,
         .onDrop         = glfw_cb_drop,
         .onWindowResize = glfw_cb_window_size,
-        .resolution     = { 1280, 720 }
+        .resolution     = { 768, 720 }
     };
     app.scene = (Scene){ .bgColor = { 113, 115, 126 } };
     app_init (&app);

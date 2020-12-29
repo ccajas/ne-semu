@@ -25,7 +25,7 @@ void glfw_cb_window_size (GLFWwindow * window, int width, int height)
 
     uint16_t nHeight = (height / 240) * 240;
     if (nHeight < 240) nHeight = 240;
-    uint16_t nWidth  = (nHeight / 9) * 16;
+    uint16_t nWidth  = (nHeight / 15) * 16;
 
     glfwSetWindowSize (window, nWidth, nHeight);
     glViewport (0, 0, nWidth, nHeight);

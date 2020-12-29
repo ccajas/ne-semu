@@ -2,6 +2,7 @@
 #include "callbacks.h"
 #include "inputstates.h"
 #include "glfw_input.h"
+#include "../../nfd/src/nfd.h"
 
 uint8_t app_controller_state (KeyboardState * const key, struct appInputs * const input)
 {
@@ -28,13 +29,16 @@ void app_update (App * app)
     struct appInputs * input = &app->inputs;
 
     /* Standard app functions */
-    if (input_new_key (key, lastKey, input->APP_MAXIMIZE))    app_toggle_maximize (app);
-    if (input_new_key (key, lastKey, input->APP_OPEN_FILE))   app_open_dialog();
-    if (input_new_key (key, lastKey, input->APP_EXIT) || 
+    if (input_new_key (key, lastKey, input->EVENT_MAXIMIZE))    app_toggle_maximize (app);
+    if (input_new_key (key, lastKey, input->EVENT_OPEN_FILE))   app_open_dialog (app);
+    if (input_new_key (key, lastKey, input->EVENT_EXIT) || 
         glfwWindowShouldClose(app->window)) app->running = 0;
 
     /* Emulation and debug functions */
-    if (input_new_key (key, lastKey, input->EMULATION_TOGGLE)) app->emulationRun = ~app->emulationRun;
+    if (input_new_key (key, lastKey, input->EMULATION_TOGGLE)) {
+        printf("Emulation toggle\n");
+        app->emulationRun = !app->emulationRun;
+    }
     if (input_new_key (key, lastKey, input->EMULATION_DEBUG))  ppu_toggle_debug (&NES.ppu);
     if (input_new_key (key, lastKey, input->EMULATION_RESET))  bus_reset (&NES);
 
@@ -51,21 +55,25 @@ void app_update (App * app)
     }
 
     /* Update window title */
-    char textbuf[64];
-    sprintf(textbuf, "Frame time: %f ms", app->timer.frameTime);
+    char textbuf[256];
+    snprintf(textbuf, sizeof(textbuf), "Frame time: %.3f ms | %s", app->timer.frameTime, NES.rom.filename);
+    update_timer (&app->timer, glfwGetTime());
+
     glfwSetWindowTitle(app->window, textbuf);
     glfwPollEvents();
 }
 
-void app_draw(App * app)
+void app_draw (App * const app)
 {
     draw_scene (app->window, &app->scene);
+#ifdef PPU_DEBUG
     draw_debug (app->window, &app->timer);
+#endif
 
     glfwSwapBuffers(app->window);
 }
 
-void app_free(App * app)
+void app_free (App * const app)
 {
     glfwDestroyWindow(app->window);
     glfwTerminate();
@@ -74,7 +82,7 @@ void app_free(App * app)
 
 /* Callback wrappers */
 
-void app_toggle_maximize (App* const app)
+void app_toggle_maximize (App * const app)
 {
     if (!glfwGetWindowAttrib(app->window, GLFW_MAXIMIZED)) {
         glfwMaximizeWindow (app->window);
@@ -83,7 +91,7 @@ void app_toggle_maximize (App* const app)
     }   
 }
 
-void app_capture_mouse_scroll (App * app, double xOffset, double yOffset)
+void app_capture_mouse_scroll (App * const app, double xOffset, double yOffset)
 {
     app->mouseState.scrollX = xOffset;
     app->mouseState.scrollY = yOffset;
@@ -94,15 +102,18 @@ void app_capture_drop (App * app, char * paths[])
     app->dropPath = paths[0];
 
     /* Attempt to load the file */
-    rom_load (&NES, app->dropPath);
+    if (rom_load (&NES, app->dropPath))
+        app->emulationRun = 1;
 }
 
-void app_open_dialog()
+void app_open_dialog(App * const app)
 {
     char *outPath = NULL;
-    /*nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
+    nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
 
-    if (result == NFD_OKAY) {
-        rom_load (&NES, outPath);
-    }*/
+    if (result == NFD_OKAY) 
+    {
+        if (rom_load (&NES, outPath)) 
+            app->emulationRun = 1;
+    }
 }

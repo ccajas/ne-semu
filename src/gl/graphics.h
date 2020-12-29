@@ -4,7 +4,10 @@
 #include "../glfw/timer.h"
 #include "../bus.h"
 #include "../palette.h"
-#include "text.h"
+#include "../utils/linmath.h"
+#include "gl_gen.h"
+#include "shader.h"
+//#include "text.h"
 
 typedef struct Scene_struct
 {
@@ -57,7 +60,7 @@ inline void graphics_init (Scene * scene)
 	scene->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
 
 	/* Init text and texture objects */
-	text_init ();
+	//text_init ();
 
 	char* pixels = (char*)calloc(192, 1);
 	for (int i = 0; i < 192; i += 3)
@@ -71,14 +74,16 @@ inline void graphics_init (Scene * scene)
 
 	/* Create main textures */
     texture_setup (&scene->fbufferTexture, 256, 240, GL_LINEAR, NULL);
-    texture_setup (&scene->pTableTexture,  256, 256, GL_LINEAR, NULL);
-    texture_setup (&scene->paletteTexture, 64,  1, GL_LINEAR, pixels);
+    texture_setup (&scene->pTableTexture,  256, 256, GL_NEAREST, NULL);
+    texture_setup (&scene->paletteTexture, 64,  1, GL_NEAREST, pixels);
 
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
     glEnable(GL_MULTISAMPLE);
     glDepthFunc(GL_LEQUAL);
 }
+
+#ifdef CPU_DEBUG
 
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
 {
@@ -118,5 +123,7 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
 
 void draw_debug     (GLFWwindow * window, Timer * const timer);
 void draw_debug_ppu (int32_t const width, int32_t const height);
+
+#endif
 
 #endif

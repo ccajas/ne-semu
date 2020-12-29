@@ -32,7 +32,7 @@ const char * ppu_fs_source =
 "    float radius = 1.35;\n"
 "    float softness = 1.0;\n"
 "    float vignette = smoothstep(radius, radius - softness, dist);\n"
-"    color.rgb = color.rgb - (0.92 - vignette);\n"
+"    color.rgb = color.rgb - (0.85 - vignette);\n"
 "    return color;\n"
 "}\n"
 
@@ -47,16 +47,6 @@ const char * ppu_fs_source =
 "    color *= pow(fract(position.y * 240.0), 0.5);\n"
 "    return color * 1.75;\n"
 "}\n"
-
-"vec3 blur5(sampler2D image, vec2 uv, vec2 resolution, vec2 direction)\n"
-"{\n"
-"    vec3 color = vec3(0.0);\n"
-"    vec2 off1 = vec2(1.3333333333333333) * direction;\n"
-"    color += texture2D(image, uv).rgb * 0.29411764705882354;\n"
-"    color += texture2D(image, uv + (off1 / resolution)).rgb * 0.35294117647058826;\n"
-"    color += texture2D(image, uv - (off1 / resolution)).rgb * 0.35294117647058826;\n"
-"    return color;\n"
-"}"
 
 "void main()\n"
 "{\n"
@@ -191,8 +181,6 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
 
 void draw_debug (GLFWwindow * window, Timer * const timer)
 {
-    update_timer (timer, glfwGetTime());
-
     int32_t width, height;
     glfwGetFramebufferSize (window, &width, &height);
 	uint16_t wOffset = height / 15 * 16;
@@ -203,7 +191,7 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
     if (ppu_show_debug (&NES.ppu))
         draw_debug_ppu (width, height);
 #endif
-
+#ifdef CPU_DEBUG
     /* Setup text */
     char textbuf[256];     
     text_begin (width, height);
@@ -228,4 +216,5 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
 
     /* CPU registers and storage locations for program/vars */
     draw_debug_cpu(wOffset, height - 112.0f);
+#endif
 }
