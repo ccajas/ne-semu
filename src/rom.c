@@ -10,7 +10,7 @@ void rom_eject (NESrom * const rom)
     rom->valid = 0;
 }
 
-void rom_load (Bus * const bus, const char* filename)
+uint8_t rom_load (Bus * const bus, const char* filename)
 {
     NESrom * rom = &bus->rom;
     rom->valid = 0;
@@ -59,7 +59,9 @@ void rom_load (Bus * const bus, const char* filename)
 
         /* Test disassembly output */
         //cpu_disassemble (bus, bus->cpu.r.pc, bus->cpu.r.pc + 0x80);
+        return 1;
     }
 
     free (filebuf);
+    return 0;
 }

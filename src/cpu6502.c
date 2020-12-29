@@ -21,12 +21,15 @@ CPU6502 *cpu = &NES.cpu;
 
 /* Meta function macros (for disassembly/debugging) */
 
-#define get_opname()   if (cpu->debug) { sprintf(cpu->lastop,   "%s",  __func__); return; } 
-#define get_addrmode() if (cpu->debug) { sprintf(cpu->lastmode, "%4s", __func__); return 0; } 
-#define to_upper(str) {\
-    char *s = str;\
-    while (*s) {*s = (unsigned char)(*s - 32); s++; }\
-}
+#if CPU_OP_DEBUG
+    #define get_opname()   if (cpu->debug) { sprintf(cpu->lastop,   "%s",  __func__); return; } 
+    #define get_addrmode() if (cpu->debug) { sprintf(cpu->lastmode, "%4s", __func__); return 0; } 
+#else
+    #define get_opname()
+    #define get_addrmode()
+#endif
+
+#define to_upper(str)  char *s = str; while (*s) {*s = (unsigned char)(*s - 32); s++; }
 
 /* flag calculation macros */
 #define zerocalc(n) {\
@@ -42,6 +45,14 @@ CPU6502 *cpu = &NES.cpu;
 #define carrycalc(n) {\
     if ((n) & 0xff00) flag_set(FLAG_CARRY);\
         else flag_clear(FLAG_CARRY);\
+}
+
+/* Set flags during compare op */
+#define cmpset(n) {\
+    if (n >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);\
+        else flag_clear(FLAG_CARRY);\
+    if (n == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);\
+        else flag_clear(FLAG_ZERO);\
 }
 
 /*if (~((n) ^ (uint16_t)(m)) & ((n) ^ (o)) & 0x80) setoverflow();\*/
@@ -90,29 +101,15 @@ void cpu_clock (Bus * const bus)
         bus->ppu.nmi = 0;
         cpu->clockCount += 8;
         cpu->clockticks = 0;
-        //return;
     }
 
     if (cpu->clockticks == 0)
     {
-        cpu->lastpc = cpu->r.pc;
         cpu->opcode = cpu_read(cpu->r.pc++);
-        cpu->r.status |= FLAG_CONSTANT;
-
-        cpu->opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
+        
         /* Fetch OP name, convert op position from table into ID */
-        cpu->debug = 1;
-        (*optable[cpu->opID].addrmode)();
-        (*optable[cpu->opID].op)();
+        cpu->opID = ((cpu->opcode & 3) * 0x40) + (cpu->opcode >> 2);
 
-        to_upper(cpu->lastop);
-        cpu->debug = 0;
-/*
-        printf("$%04x %02x %s (%s) : A:%02x X:%02x Y:%02x P:%02x SP:%02x PPU:%03d,%03d CYC:%ld\n", 
-            cpu->lastpc, cpu->opcode, cpu->lastop, cpu->lastmode, 
-            cpu->r.a, cpu->r.x, cpu->r.y, cpu->r.status, cpu->r.sp, 
-            bus->ppu.scanline, bus->ppu.cycle, cpu->clockCount);
-*/
         /* Exec instruction and get no. of cycles */
         penaltyop = 0;
         cpu->clockticks = optable[cpu->opID].ticks;
@@ -123,7 +120,6 @@ void cpu_clock (Bus * const bus)
         if (penaltyop && penaltyaddr) cpu->clockticks++;
 
         /* Reset the unused flag */
-        cpu->r.status |= FLAG_CONSTANT;
         cpu->instructions++;
     }
     cpu->clockticks--;
@@ -131,18 +127,18 @@ void cpu_clock (Bus * const bus)
 }
 
 //a few general functions used by various other functions
-inline void push16 (uint16_t pushval)
+void push16 (uint16_t pushval)
 {
     cpu_write (BASE_STACK + cpu->r.sp--, (pushval >> 8) & 0xff);
     cpu_write (BASE_STACK + cpu->r.sp--, pushval & 0xff);
 }
 
-inline void push8 (uint8_t pushval) 
+void push8 (uint8_t pushval) 
 {
     cpu_write (BASE_STACK + cpu->r.sp--, pushval);
 }
 
-inline uint16_t pull16() 
+uint16_t pull16() 
 {
     uint16_t temp16;
     temp16 = cpu_read (BASE_STACK + ((cpu->r.sp + 1) & 0xFF)) | ((uint16_t) cpu_read(BASE_STACK + ((cpu->r.sp + 2) & 0xFF)) << 8);
@@ -150,7 +146,7 @@ inline uint16_t pull16()
     return(temp16);
 }
 
-inline uint8_t pull8() 
+uint8_t pull8() 
 {
     cpu->r.sp++;
     return (cpu_read (BASE_STACK + cpu->r.sp));
@@ -361,19 +357,19 @@ void asl() /* Arithmetic shift left */
 void bcc() /* Branch on carry clear */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_CARRY) == 0) branch();
+    if (!(cpu->r.status & FLAG_CARRY)) branch();
 }
 
 void bcs() /* Branch on carry set */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_CARRY) == FLAG_CARRY) branch();
+    if (cpu->r.status & FLAG_CARRY) branch();
 }
 
 void beq() /* Branch if equal (zero set) */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_ZERO) == FLAG_ZERO) branch();
+    if (cpu->r.status & FLAG_ZERO) branch();
 }   
 
 void bit() /* Test bits */
@@ -389,19 +385,19 @@ void bit() /* Test bits */
 void bmi() /* Branch on minus (sign set) */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_SIGN) == FLAG_SIGN) branch();
+    if (cpu->r.status & FLAG_SIGN) branch();
 }
 
 void bne() /* Branch if not equal (zero clear) */
 {
     get_opname();
-	if ((cpu->r.status & FLAG_ZERO) == 0) branch();
+	if (!(cpu->r.status & FLAG_ZERO)) branch();
 }
 
 void bpl() /* Branch on plus (sign clear) */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_SIGN) == 0) branch();
+    if (!(cpu->r.status & FLAG_SIGN)) branch();
 }
 
 void brk() /* Break */
@@ -416,13 +412,13 @@ void brk() /* Break */
 void bvc() /* Branch on overflow clear */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_OVERFLOW) == 0) branch();
+    if (!(cpu->r.status & FLAG_OVERFLOW)) branch();
 }
 
 void bvs() /* Branch on overflow set */
 {
     get_opname();
-    if ((cpu->r.status & FLAG_OVERFLOW) == FLAG_OVERFLOW) branch();
+    if (cpu->r.status & FLAG_OVERFLOW) branch();
 }
 
 void clc() /* Clear carry */
@@ -454,11 +450,7 @@ void cmp() /* Compare (with accumulator) */
     get_opname();
     penaltyop = 1;
     cpu->value = getvalue();
-
-    if (cpu->r.a >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
-        else flag_clear(FLAG_CARRY);
-    if (cpu->r.a == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
-        else flag_clear(FLAG_ZERO);
+    cmpset(cpu->r.a);
     signcalc((uint16_t) cpu->r.a - cpu->value);
 }
 
@@ -466,11 +458,7 @@ void cpx() /* Compare with X */
 {
     get_opname();
     cpu->value = getvalue();
-
-    if (cpu->r.x >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
-        else flag_clear(FLAG_CARRY);
-    if (cpu->r.x == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
-        else flag_clear(FLAG_ZERO);
+    cmpset(cpu->r.x);
     signcalc((uint16_t) cpu->r.x - cpu->value);
 }
 
@@ -478,11 +466,7 @@ void cpy() /* Compare with Y */
 {
     get_opname();
     cpu->value = getvalue();
-
-    if (cpu->r.y >= (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_CARRY);
-        else flag_clear(FLAG_CARRY);
-    if (cpu->r.y == (uint8_t)(cpu->value & 0xff)) flag_set(FLAG_ZERO);
-        else flag_clear(FLAG_ZERO);
+    cmpset(cpu->r.y);
     signcalc((uint16_t)cpu->r.y - cpu->value);
 }
 
