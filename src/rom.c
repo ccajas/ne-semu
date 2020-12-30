@@ -10,27 +10,27 @@ void rom_eject (NESrom * const rom)
     rom->valid = 0;
 }
 
-uint8_t rom_load (Bus * const bus, const char* filename)
+uint8_t rom_load (Bus * const bus, const char* pathname)
 {
     NESrom * rom = &bus->rom;
     rom->valid = 0;
 
-    uint8_t *filebuf = (uint8_t*)read_file_short (filename);
+    uint8_t *filebuf = (uint8_t*)read_file_short (pathname);
     uint32_t headerString = 0;
     memcpy (&headerString, filebuf, sizeof(headerString));
 
     if (headerString == 0x1a53454e) /* Chars "NES" + 0x1a */
     {
-        const char * file = basename(filename);
-        printf("Rom valid! (%s)\n", filename);
+        const char * file = basename(pathname);
         rom_eject (&bus->rom);
 
         rom->valid = 1;
 
         /* Copy header and PRG rom from 16 byte offset */
         memcpy (rom->header,   filebuf, sizeof(rom->header));
-        memcpy (rom->filename, file,    sizeof(rom->filename));
+        memcpy (rom->filename, file,    128);
         rom->mapperID = (rom->header[6] >> 4) | (rom->header[7] & 0xf0);
+        printf("Rom valid! (%s)\n", rom->filename);
         printf("Mapper ID: %d\n", rom->mapperID);
 
         /* After getting the rom info, the correct mapper can be obtained */

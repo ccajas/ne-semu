@@ -38,7 +38,7 @@ inline char* read_file_short (const char* filename)
 	long size = ftell(f);
 	fseek(f, 0, SEEK_SET);
 
-	printf("Bytes read: %lu (\033[35m'%s'\033[0m)\n", size, filename);
+	printf("Bytes read: %lu (\033[96m'%s'\033[0m)\n", size, filename);
 
 	char *buf = malloc(size + 1);
 	if (!fread(buf, 1, size, f)) 

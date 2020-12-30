@@ -30,5 +30,5 @@ NESrom;
 /* Forward declaration */
 typedef struct Bus_struct Bus;
 
-uint8_t rom_load  (Bus    * const bus, const char* filename);
+uint8_t rom_load  (Bus    * const bus, const char* pathname);
 void    rom_eject (NESrom * const rom);
