@@ -9,8 +9,7 @@ void ppu_reset (PPU2C02 * const ppu, NESrom * const rom)
 	ppu->mask.flags = 0;
 	ppu->status.flags = 0;
 
-	ppu->scanline = 0;
-	ppu->cycle = ppu->frame = 0;
+	ppu->scanline = ppu->cycle = ppu->frame = 0;
 	ppu->latch = 0;
 	ppu->fineX = 0;
 	ppu->dataBuffer = 0;
@@ -100,6 +99,7 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 		case OAM_DATA:
 			if (ppu->scanline > 239 && ppu->scanline != 241)
 				ppu->OAMdata[ppu->OAMaddress] = data;
+			ppu->VRam.reg++;
 			break;
 		case PPU_SCROLL:
 			if (ppu->latch == 0)
@@ -251,10 +251,11 @@ void ppu_background (PPU2C02 * const ppu)
 	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Get offset value in memory based on tile position */
-	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
+	uint8_t baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
 
 	for (int i = 0; i < 1024; i++)
 	{
+		/* Read nametable data */
 		uint8_t tile = ppu_read(ppu, i + (0x2000 + baseTable * 0x400));
 		uint8_t tileX = i % 32;
 		uint8_t tileY = i / 32;
@@ -279,11 +280,11 @@ void ppu_background (PPU2C02 * const ppu)
 				tile_msb >>= 1;
 
 				/* Index 0 is transparent, skip pixel drawing */
-				//ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, 0);
+				ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, 0);
 				if (index == 0) continue;
 
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
-				ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, palColor);
+				ppu_pixel (ppu, tileX * 8 + (7 - col), (tileY - ppu->VRam.coarseY) * 8 + row, palColor);
 			}
 		}
 	}
@@ -326,12 +327,13 @@ void ppu_sprites (PPU2C02 * const ppu)
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				uint8_t col1 = (Hflip) ? col : 7 - col;
 				uint8_t row1 = (Vflip) ? 7 - row : row;
-				ppu_pixel (ppu, xPos + col1, yPos + row1 + 1, palColor);
+				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
 			}
 		}
 	}
 }
-
+#define PPU_PIXEL_
+#ifdef PPU_PIXEL
 void ppu_background_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
 	if (x >= 256) return;
@@ -368,6 +370,7 @@ void ppu_background_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const
 
 	ppu_pixel (ppu, xPos + col, yPos + row, palColor);
 }
+#endif
 
 inline void ppu_nametable_fetch (PPU2C02 * const ppu)
 {
@@ -379,9 +382,33 @@ inline void ppu_attribute_fetch (PPU2C02 * const ppu)
 	/* To be implemented */	
 }
 
-inline void LoadBackgroundShifters (PPU2C02 * const ppu)
+inline void ppu_load_BG_shifters (PPU2C02 * const ppu)
 {
 	/* To be implemented */
+}
+
+inline void ppu_copy_X_scroll (PPU2C02 * const ppu)
+{
+	if (!ppu->mask.RENDER_BG && !ppu->mask.RENDER_SPRITES) return;
+
+	/*  VRam bits: ---- -N-- ---X XXXX */
+	ppu->VRam.nametableX = ppu->tmpVRam.nametableX;
+	ppu->VRam.coarseX    = ppu->tmpVRam.coarseX;
+}
+
+inline void ppu_copy_Y_scroll (PPU2C02 * const ppu)
+{
+	if (!ppu->mask.RENDER_BG && !ppu->mask.RENDER_SPRITES) return;
+
+	uint16_t lastCY = ppu->VRam.coarseY;
+
+	/*  VRam bits: -yyy N-YY YYY- ---- */
+	ppu->VRam.fineY      = ppu->tmpVRam.fineY;
+	ppu->VRam.nametableY = ppu->tmpVRam.nametableY;
+	ppu->VRam.coarseY    = ppu->tmpVRam.coarseY;
+
+	if (lastCY != ppu->VRam.coarseY)
+		printf("Scroll: %02x.%01x Last: %02x (frame %d)\n", ppu->VRam.coarseY, ppu->VRam.fineY, ppu->frame);
 }
 
 const uint32_t PPU_CYCLES_PER_FRAME = 89342; /* 341 cycles per 262 scanlines */
@@ -398,33 +425,48 @@ void ppu_clock (PPU2C02 * const ppu)
 	   242 --- Vblank, enable NMI
 	   261 --- Last line
 	*/
+	/* Shorthand assignment */
+	const int16_t cycle    = ppu->cycle;
+	const int16_t scanline = ppu->scanline;
 
-	if (ppu->scanline >= 0 && ppu->scanline < 240)
+	if (scanline >= 0 && scanline < 240)
 	{		
-		if (ppu->scanline == 1 && ppu->cycle == 0) {
+		if (scanline == 1 && cycle == 0) {
 			if (ppu->frame & 1) ppu->cycle = 1;
 		}
 		
-		if (ppu->scanline == 0 && ppu->cycle == 1) {
+		if (scanline == 0 && cycle == 1) {
 			ppu->status.VERTICAL_BLANK = 0;
 		}
 
+
+		if (cycle == 257) {
+			ppu_copy_X_scroll(ppu);
+		}
+
 		/* Do more PPU reads (not used) */
-		if (ppu->cycle == 337 || ppu->cycle == 339) {
+		if (cycle == 337 || cycle == 339) {
 			ppu->nextTile.index = ppu_read(ppu, 0x2000 | (ppu->VRam.reg & 0x0fff));
 		}
 	}
-
-	ppu_background_pixel (ppu, ppu->cycle, ppu->scanline);
-
-	if (ppu->scanline == 242 && ppu->cycle == 1)
+#ifdef PPU_PIXEL
+	ppu_background_pixel (ppu, cycle, scanline);
+#endif
+	if (scanline == 242 && cycle == 1)
 	{
 		ppu->status.VERTICAL_BLANK = 1;
 		if (ppu->control.ENABLE_NMI) 
 			ppu->nmi = 1;
 
-		//ppu_background (ppu);
+#ifndef PPU_PIXEL
+		ppu_background (ppu);
+#endif
 		ppu_sprites (ppu);
+	}
+	/* Pre-render line */
+	if (ppu->scanline == 261 && cycle >= 280 && cycle < 305)
+	{
+		ppu_copy_Y_scroll(ppu);
 	}
 
 	/* General scan/cycle counting */

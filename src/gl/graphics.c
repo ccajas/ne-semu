@@ -155,7 +155,6 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
 
     int32_t width, height;
     glfwGetFramebufferSize (window, &width, &height);
-	uint16_t w = height / 15 * 16;
 
     /* Render the PPU framebuffer here */
     glUseProgram(scene->fbufferShader.program);

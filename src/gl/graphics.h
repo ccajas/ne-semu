@@ -26,14 +26,8 @@ extern const char * ppu_fs_source;
 
 extern uint32_t quadVAO;
 
-#ifdef PPU_DEBUG
-
-void ppu_debug  (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight);
-void draw_scene (GLFWwindow * window, Scene * const scene);
-
-#endif
-
 void draw_lazy_quad (const float width, const float height);
+void draw_scene (GLFWwindow * window, Scene * const scene);
 
 inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t height, GLenum filter, const void * data)
 {
@@ -86,6 +80,8 @@ inline void graphics_init (Scene * scene)
 
 #ifdef CPU_DEBUG
 
+void draw_debug (GLFWwindow * window, Timer * const timer);
+
 inline void draw_debug_cpu (int32_t const x, int32_t const y)
 {
     char textbuf[256];
@@ -122,7 +118,10 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
     }
 }
 
-void draw_debug     (GLFWwindow * window, Timer * const timer);
+#endif
+#ifdef PPU_DEBUG
+
+void ppu_debug      (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight);
 void draw_debug_ppu (int32_t const width, int32_t const height);
 
 #endif
