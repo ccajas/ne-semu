@@ -57,11 +57,11 @@ const char * ppu_fs_source =
 "    gl_FragColor = vec4(sampled * sampled, 1.0);\n"
 "}\n";
 
-uint32_t quadVAO = 0;
+uint32_t quadVAO[2] = { 0, 0 };
 
-void draw_lazy_quad(const float width, const float height)
+void draw_lazy_quad(const float width, const float height, const int i)
 {
-    if (quadVAO == 0)
+    while (quadVAO[i] == 0)
     {
         uint32_t quadVBO = 0;
         const float quadVertices[] = {
@@ -72,9 +72,9 @@ void draw_lazy_quad(const float width, const float height)
             width, 0.0f,   0.0f, 1.0f, 1.0f,
         };
 
-        glGenVertexArrays(1, &quadVAO);
+        glGenVertexArrays(1, &quadVAO[i]);
         glGenBuffers(1, &quadVBO);
-        glBindVertexArray(quadVAO);
+        glBindVertexArray(quadVAO[i]);
 
         glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
         glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
@@ -86,52 +86,83 @@ void draw_lazy_quad(const float width, const float height)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0); 
         glBindVertexArray(0); 
+
+        break;
     }
 
-    glBindVertexArray(quadVAO);
+    glBindVertexArray(quadVAO[i]);
     glDrawArrays (GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
 }
 
 #ifdef PPU_DEBUG
 
-void ppu_debug (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight)
+void draw_ppu_debug (GLFWwindow * window, Scene * const scene)
 {
+	glClearColor(0.8f, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    int32_t width, height;
+    glfwGetFramebufferSize (window, &width, &height);
+
+    /* Render the PPU framebuffer here */
+    glUseProgram(scene->fbufferShader.program);
     mat4x4 model;
-    uint16_t w = scrHeight / 15 * 16;
+    mat4x4 projection;
+
+    mat4x4_identity (model);
+    mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
+    mat4x4_scale_aniso (model, model, width, height, 1.0f);
+
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) projection);
+
+    glActiveTexture (GL_TEXTURE0);
+
+    /* Draw framebuffer */
+    glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
+	draw_lazy_quad(1.0f, 1.0f, 0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    return;
 
     /* Draw pattern tables */
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, w, 0, 0);
+    //mat4x4_translate_in_place (model, 0, 0, 0);
+    mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[0]);
-	//draw_lazy_quad();
+	
+    draw_lazy_quad(1.0f, 1.0f, 0);
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, w + 256, 0, 0);
+    //mat4x4_translate_in_place (model, 256, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[1]);
 
-	//draw_lazy_quad();
+	draw_lazy_quad(1.0f, 1.0f, 0);
 
 	/* Bind the palette to the 2nd texture too */
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, scene->paletteTexture);
+	//glActiveTexture(GL_TEXTURE1);
+	//glBindTexture(GL_TEXTURE_2D, scene->paletteTexture);
 
 	/* Finish */
     glBindTexture(GL_TEXTURE_2D, 0);
+    glfwSwapBuffers(window);
 }
 
-void draw_debug_ppu (int32_t const width, int32_t const height)
+void draw_debug_tiles (int32_t const width, int32_t const height)
 {
     /* Draw PPU graphical output */
-    text_begin (width, height);
+    //text_begin (width, height);
 
     char textbuf[256];
     for (int y = 0; y < 30; y++)
@@ -142,13 +173,13 @@ void draw_debug_ppu (int32_t const width, int32_t const height)
             uint8_t tile = ppu_read(&NES.ppu, (y * 32 + x) + 0x2000);
             sprintf(textbuf + strlen(textbuf), "%02x ", tile);
         }
-        text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaaffffff);
+        //text_draw_alpha (textbuf, 0, height - 10 - y * 24, 0.4f, 0xaaffffff);
     }    
 }
 
 #endif
 
-void draw_scene (GLFWwindow * window, Scene * const scene)
+void draw_scene (GLFWwindow * window, Scene * const scene, uint8_t i)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -173,7 +204,9 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
     /* Draw framebuffer */
     glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
-	draw_lazy_quad(1.0f, 1.0f);
+	draw_lazy_quad(1.0f, 1.0f, i);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void draw_debug (GLFWwindow * window, Timer * const timer)
@@ -183,11 +216,6 @@ void draw_debug (GLFWwindow * window, Timer * const timer)
 	uint16_t wOffset = height / 15 * 16;
     wOffset += 4;
 
-#if PPU_DEBUG
-    /* Graphical PPU debug */
-    if (ppu_show_debug (&NES.ppu))
-        draw_debug_ppu (width, height);
-#endif
 #ifdef CPU_DEBUG
     /* Setup text */
     char textbuf[256];     

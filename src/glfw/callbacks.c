@@ -31,7 +31,7 @@ void glfw_cb_window_size (GLFWwindow * window, int width, int height)
     glViewport (0, 0, nWidth, nHeight);
 }
 
-GLFWwindow * glfw_new_window(int width, int height, const char *title)
+GLFWwindow * glfw_new_window(int width, int height, const char *title, GLFWwindow * shared)
 {
     GLFWwindow* window;
 
@@ -46,7 +46,7 @@ GLFWwindow * glfw_new_window(int width, int height, const char *title)
     glfwWindowHint (GLFW_RESIZABLE, GL_TRUE);
     /*glfwWindowHint( GLFW_DOUBLEBUFFER, GL_FALSE);*/
  
-    window = glfwCreateWindow(width, height, title, NULL, NULL);
+    window = glfwCreateWindow(width, height, title, NULL, shared);
     if (!window)
     {
         glfwTerminate();

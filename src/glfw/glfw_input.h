@@ -23,16 +23,22 @@ void app_init_inputs (App * app)
 
 void app_init(App * app)
 {
-    app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title);
+    app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title, NULL);
+#ifdef PPU_DEBUG
+    app->debugWindow = glfw_new_window (app->resolution[0], app->resolution[1], "PPU Viewer", app->window);
+#endif
 
     /* Initialize graphics and emulation system */
     graphics_init (&app->scene);
     app_init_inputs (app);
     bus_reset (&NES);
 
-    glfwSetWindowUserPointer       (app->window, app);
+    glfwSetWindowUserPointer       (app->window,      app);
+#ifdef PPU_DEBUG
+    glfwSetWindowUserPointer       (app->debugWindow, app);
+#endif
 
-    /* Setup main callbacks */
+    /* Setup callbacks for main window */
     glfwSetErrorCallback           (glfw_cb_error);
     glfwSetScrollCallback          (app->window, app->onScroll);
     glfwSetDropCallback            (app->window, app->onDrop);

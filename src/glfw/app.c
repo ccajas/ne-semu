@@ -32,7 +32,8 @@ void app_update (App * app)
     if (input_new_key (key, lastKey, input->EVENT_MAXIMIZE))    app_toggle_maximize (app);
     if (input_new_key (key, lastKey, input->EVENT_OPEN_FILE))   app_open_dialog (app);
     if (input_new_key (key, lastKey, input->EVENT_EXIT) || 
-        glfwWindowShouldClose(app->window)) app->running = 0;
+        glfwWindowShouldClose(app->window) ||
+        glfwWindowShouldClose(app->debugWindow)) app->running = 0;
 
     /* Emulation and debug functions */
     if (input_new_key (key, lastKey, input->EMULATION_PAUSE)) 
@@ -66,12 +67,14 @@ void app_update (App * app)
 
 void app_draw (App * const app)
 {
-    draw_scene (app->window, &app->scene);
-#ifdef PPU_DEBUG
-    draw_debug (app->window, &app->timer);
+    glfwMakeContextCurrent (app->window);
+    draw_scene (app->window, &app->scene, 0);
+#ifdef PPU_DEBUG    
+    glfwMakeContextCurrent (app->debugWindow);
+    draw_scene (app->debugWindow, &app->scene, 1);
 #endif
-
     glfwSwapBuffers(app->window);
+    glfwSwapBuffers(app->debugWindow);
 }
 
 /* Callback wrappers */

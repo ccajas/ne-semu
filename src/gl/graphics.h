@@ -7,7 +7,8 @@
 #include "../utils/linmath.h"
 #include "gl_gen.h"
 #include "shader.h"
-//#include "text.h"
+
+#define PPU_DEBUG
 
 typedef struct Scene_struct
 {
@@ -24,10 +25,10 @@ Scene;
 extern const char * ppu_vs_source;
 extern const char * ppu_fs_source;
 
-extern uint32_t quadVAO;
+extern uint32_t quadVAO[2];
 
-void draw_lazy_quad (const float width, const float height);
-void draw_scene (GLFWwindow * window, Scene * const scene);
+void draw_lazy_quad (const float width, const float height, const int i);
+void draw_scene     (GLFWwindow *, Scene * const, uint8_t i);
 
 inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t height, GLenum filter, const void * data)
 {
@@ -42,7 +43,7 @@ inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t 
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 }
 
-inline void graphics_init (Scene * scene)
+inline void graphics_init (Scene * const scene)
 {
     gladLoadGL();
     glfwSwapInterval(0);
@@ -119,10 +120,11 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
 }
 
 #endif
+
 #ifdef PPU_DEBUG
 
-void ppu_debug      (Scene * const scene, int32_t const scrWidth, int32_t const scrHeight);
-void draw_debug_ppu (int32_t const width, int32_t const height);
+void draw_ppu_debug   (GLFWwindow * const, Scene * const );
+void draw_debug_tiles (int32_t const width, int32_t const height);
 
 #endif
 
