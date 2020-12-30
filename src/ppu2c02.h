@@ -115,9 +115,7 @@ typedef struct PPU2C02_Struct
     uint8_t  debug;
 
     uint8_t pTableDebug[2][128 * 128 * 3];
-    uint8_t frameBuffer[256 * 240 * 3];
-    uint8_t fullPixels[192];
-    uint8_t palette;
+    uint8_t frameBuffer[256 * 256 * 3];
 }
 PPU2C02;
 

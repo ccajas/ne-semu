@@ -18,10 +18,13 @@ typedef struct Scene_struct
         fbufferTexture, 
         pTableTexture, 
         paletteTexture;
-    Shader fbufferShader;
+    Shader 
+        fbufferShader,
+        debugShader;
 }
 Scene;
 
+extern const char * default_fs_source;
 extern const char * ppu_vs_source;
 extern const char * ppu_fs_source;
 
@@ -52,8 +55,9 @@ inline void graphics_init (Scene * const scene)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glBlendEquation(GL_FUNC_ADD);
 
-	/* Create shader */
+	/* Create shaders */
 	scene->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
+	scene->debugShader   = shader_init_source (ppu_vs_source, default_fs_source);
 
 	/* Init text and texture objects */
 	//text_init ();

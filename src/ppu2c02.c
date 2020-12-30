@@ -399,16 +399,11 @@ inline void ppu_copy_X_scroll (PPU2C02 * const ppu)
 inline void ppu_copy_Y_scroll (PPU2C02 * const ppu)
 {
 	if (!ppu->mask.RENDER_BG && !ppu->mask.RENDER_SPRITES) return;
-
-	uint16_t lastCY = ppu->VRam.coarseY;
-
+	
 	/*  VRam bits: -yyy N-YY YYY- ---- */
 	ppu->VRam.fineY      = ppu->tmpVRam.fineY;
 	ppu->VRam.nametableY = ppu->tmpVRam.nametableY;
 	ppu->VRam.coarseY    = ppu->tmpVRam.coarseY;
-
-	if (lastCY != ppu->VRam.coarseY)
-		printf("Scroll: %02x.%01x Last: %02x (frame %d)\n", ppu->VRam.coarseY, ppu->VRam.fineY, ppu->frame);
 }
 
 const uint32_t PPU_CYCLES_PER_FRAME = 89342; /* 341 cycles per 262 scanlines */
