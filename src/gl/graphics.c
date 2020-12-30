@@ -52,9 +52,9 @@ const char * ppu_fs_source =
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
-"    sampled      = pow(sampled, vec3(1/1.4));\n"
-"    sampled      = applyScanline(applyVignette(sampled));\n"
-"    gl_FragColor = vec4(sampled * sampled, 1.0);\n"
+"    //sampled      = pow(sampled, vec3(1/1.4));\n"
+"    //sampled      = applyScanline(applyVignette(sampled));\n"
+"    gl_FragColor = vec4(sampled, 1.0);\n"
 "}\n";
 
 uint32_t quadVAO[2] = { 0, 0 };
@@ -99,7 +99,7 @@ void draw_lazy_quad(const float width, const float height, const int i)
 
 void draw_ppu_debug (GLFWwindow * window, Scene * const scene)
 {
-	glClearColor(0.8f, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
+	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 224, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int32_t width, height;
@@ -110,45 +110,65 @@ void draw_ppu_debug (GLFWwindow * window, Scene * const scene)
     mat4x4 model;
     mat4x4 projection;
 
-    mat4x4_identity (model);
     mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
-    mat4x4_scale_aniso (model, model, width, height, 1.0f);
+
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 0, 256, 0);
+    mat4x4_scale_aniso (model, model, width / 2, height / 2, 1.0f);
 
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) projection);
 
     glActiveTexture (GL_TEXTURE0);
 
-    /* Draw framebuffer */
+    /* Draw PPU Nametable textures */
     glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
-    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
-	draw_lazy_quad(1.0f, 1.0f, 0);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, NES.ppu.pTableDebug[0]);
+	draw_lazy_quad(1.0f, 1.0f, 1);
+
+    mat4x4_identity (model);
+    mat4x4_translate_in_place (model, 256, 256, 0);
+    mat4x4_scale_aniso (model, model, width / 2, height / 2, 1.0f);
+    glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
+
+    glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
+    glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, NES.ppu.pTableDebug[1]);
+	draw_lazy_quad(1.0f, 1.0f, 1);
 
     glBindTexture(GL_TEXTURE_2D, 0);
-
     return;
+
+    //int32_t width, height;
+    //glfwGetFramebufferSize (window, &width, &height);
+
+    /* Render the PPU framebuffer here */
+    glUseProgram(scene->fbufferShader.program);
+    //mat4x4 model;
+    //mat4x4 projection;
 
     /* Draw pattern tables */
     mat4x4_identity (model);
-    //mat4x4_translate_in_place (model, 0, 0, 0);
     mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
-    mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
+    printf("%d %d\n", width, height);
+
+    mat4x4_translate_in_place (model, 0, 0, 0);
+    mat4x4_scale_aniso (model, model, 256, 384, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[0]);
 	
-    draw_lazy_quad(1.0f, 1.0f, 0);
+    draw_lazy_quad(1.0f, 1.0f, 1);
 
     mat4x4_identity (model);
-    //mat4x4_translate_in_place (model, 256, 0, 0);
+    mat4x4_translate_in_place (model, 384, 0, 0);
     mat4x4_scale_aniso (model, model, 256, 256, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.pTableDebug[1]);
 
-	draw_lazy_quad(1.0f, 1.0f, 0);
+	draw_lazy_quad(1.0f, 1.0f, 1);
 
 	/* Bind the palette to the 2nd texture too */
 	//glActiveTexture(GL_TEXTURE1);
@@ -179,7 +199,7 @@ void draw_debug_tiles (int32_t const width, int32_t const height)
 
 #endif
 
-void draw_scene (GLFWwindow * window, Scene * const scene, uint8_t i)
+void draw_scene (GLFWwindow * window, Scene * const scene)
 {
 	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 255, (GLfloat)scene->bgColor[2] / 255, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -204,7 +224,7 @@ void draw_scene (GLFWwindow * window, Scene * const scene, uint8_t i)
     /* Draw framebuffer */
     glBindTexture (GL_TEXTURE_2D, scene->fbufferTexture);
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 256, 240, 0, GL_RGB, GL_UNSIGNED_BYTE, &NES.ppu.frameBuffer);
-	draw_lazy_quad(1.0f, 1.0f, i);
+	draw_lazy_quad(1.0f, 1.0f, 0);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }

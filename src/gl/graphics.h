@@ -28,7 +28,7 @@ extern const char * ppu_fs_source;
 extern uint32_t quadVAO[2];
 
 void draw_lazy_quad (const float width, const float height, const int i);
-void draw_scene     (GLFWwindow *, Scene * const, uint8_t i);
+void draw_scene     (GLFWwindow *, Scene * const);
 
 inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t height, GLenum filter, const void * data)
 {

@@ -68,13 +68,13 @@ void app_update (App * app)
 void app_draw (App * const app)
 {
     glfwMakeContextCurrent (app->window);
-    draw_scene (app->window, &app->scene, 0);
+    draw_scene (app->window, &app->scene);
+    glfwSwapBuffers(app->window);
 #ifdef PPU_DEBUG    
     glfwMakeContextCurrent (app->debugWindow);
-    draw_scene (app->debugWindow, &app->scene, 1);
-#endif
-    glfwSwapBuffers(app->window);
+    draw_ppu_debug (app->debugWindow, &app->scene);
     glfwSwapBuffers(app->debugWindow);
+#endif
 }
 
 /* Callback wrappers */
