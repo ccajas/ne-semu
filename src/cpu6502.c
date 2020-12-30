@@ -10,6 +10,7 @@
 uint8_t cpu_read (uint16_t address)                { return bus_read(&NES, address);  }
 void    cpu_write(uint16_t address, uint8_t value) { bus_write(&NES, address, value); }
 
+Bus NES;
 CPU6502 *cpu = &NES.cpu;
 
 #define saveaccum(n) cpu->r.a = (uint8_t)((n) & 0xff)

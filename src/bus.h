@@ -25,7 +25,7 @@ typedef struct Bus_struct
 }
 Bus;
 
-Bus NES;
+extern Bus NES;
 extern CPU6502 *cpu;
 
 inline void bus_reset (Bus * const bus)

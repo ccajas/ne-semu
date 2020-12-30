@@ -1,4 +1,8 @@
+#ifndef GLFW_INPUT_H
+#define GLFW_INPUT_H
+
 #include <GLFW/glfw3.h>
+#include "../gl/graphics.h"
 
 void app_init_inputs (App * app)
 {
@@ -117,3 +121,5 @@ void app_toggle_maximize (App * const app)
         glfwRestoreWindow (app->window);
     }   
 }
+
+#endif

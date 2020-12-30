@@ -109,6 +109,43 @@ void draw_lazy_quad(const float width, const float height, const int i)
     glBindVertexArray(0);
 }
 
+void graphics_init (Scene * const scene)
+{
+    gladLoadGL();
+    glfwSwapInterval(0);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendEquation(GL_FUNC_ADD);
+
+    /* Create shaders */
+    scene->fbufferShader = shader_init_source (ppu_vs_source, ppu_fs_source);
+    scene->debugShader   = shader_init_source (ppu_vs_source, default_fs_source);
+
+    /* Init text and texture objects */
+    //text_init ();
+
+    char* pixels = (char*)calloc(192, 1);
+    for (int i = 0; i < 192; i += 3)
+    {
+        uint16_t palColor = palette2C03[i / 3];
+        pixels[i] =   (palColor >> 8) << 5;
+        pixels[i+1] = (palColor >> 4) << 5;
+        pixels[i+2] = (palColor << 5);
+    }
+    free (pixels);
+
+    /* Create main textures */
+    texture_setup (&scene->fbufferTexture, 256, 240, GL_NEAREST, NULL);
+    texture_setup (&scene->pTableTexture,  256, 256, GL_NEAREST, NULL);
+    texture_setup (&scene->paletteTexture, 64,  1, GL_NEAREST, pixels);
+
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_MULTISAMPLE);
+    glDepthFunc(GL_LEQUAL);
+}
+
 #ifdef PPU_DEBUG
 
 void draw_ppu_debug (GLFWwindow * window, Scene * const scene)

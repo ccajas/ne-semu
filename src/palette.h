@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-const uint16_t palette2C03[64];
+extern const uint16_t palette2C03[64];
 
 #endif
