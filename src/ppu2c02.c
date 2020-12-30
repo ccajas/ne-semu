@@ -246,13 +246,14 @@ void ppu_pixel (PPU2C02 * const ppu, uint16_t x, uint16_t y, uint16_t color)
 	ppu->frameBuffer[p * 3+2] = (uint8_t)(color << 5);
 }
 
-void ppu_background (PPU2C02 * const ppu)
+void ppu_background (PPU2C02 * const ppu, uint8_t baseTable)
 {
 	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Get offset value in memory based on tile position */
-	uint8_t baseTable = 0;//ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
+	//uint8_t baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
 
+	uint16_t yPos = (baseTable > 0) ? 240 : 0;
 	for (int i = 0; i < 0x3c0; i++)
 	{
 		/* Read nametable data */
@@ -280,12 +281,12 @@ void ppu_background (PPU2C02 * const ppu)
 				tile_msb >>= 1;
 
 				/* Index 0 is transparent, skip pixel drawing */
-				ppu_pixel (ppu, tileX * 8 + (7 - col), tileY * 8 + row, 0);
-				if (index == 0) continue;
+				//ppu_pixel (ppu, tileX * 8 + (7 - col), (tileY + yPos) * 8 + row, 0);
+				//if (index == 0) continue;
 
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				ppu_pixel (
-					ppu, tileX * 8 + (7 - col), (tileY - ppu->VRam.coarseY) * 8 + row - ppu->VRam.fineY, 
+					ppu, tileX * 8 + (7 - col), yPos + (tileY - ppu->VRam.coarseY) * 8 + row - ppu->VRam.fineY, 
 					palColor);
 			}
 		}
@@ -456,7 +457,9 @@ void ppu_clock (PPU2C02 * const ppu)
 			ppu->nmi = 1;
 
 #ifndef PPU_PIXEL
-		ppu_background (ppu);
+		ppu_background (ppu, 0);
+		if (ppu->VRam.fineY > 0 || ppu->VRam.coarseY > 0)
+			ppu_background (ppu, 2);
 #endif
 		ppu_sprites (ppu);
 	}
