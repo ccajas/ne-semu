@@ -8,7 +8,7 @@
 #include "gl_gen.h"
 #include "shader.h"
 
-#define PPU_DEBUG
+//#define PPU_DEBUG
 
 typedef struct Scene_struct
 {

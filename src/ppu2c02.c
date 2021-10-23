@@ -251,7 +251,7 @@ void ppu_background (PPU2C02 * const ppu, uint8_t baseTable)
 	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Get offset value in memory based on tile position */
-	//uint8_t baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
+	baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
 
 	uint16_t yPos = (baseTable > 0) ? 240 : 0;
 	for (int i = 0; i < 0x3c0; i++)
@@ -458,8 +458,8 @@ void ppu_clock (PPU2C02 * const ppu)
 
 #ifndef PPU_PIXEL
 		ppu_background (ppu, 0);
-		if (ppu->VRam.fineY > 0 || ppu->VRam.coarseY > 0)
-			ppu_background (ppu, 2);
+		//if (ppu->VRam.fineY > 0 || ppu->VRam.coarseY > 0)
+		//	ppu_background (ppu, 2);
 #endif
 		ppu_sprites (ppu);
 	}
