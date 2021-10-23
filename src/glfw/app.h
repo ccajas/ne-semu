@@ -12,6 +12,7 @@ typedef struct App_struct
     {
         uint16_t EVENT_OPEN_FILE,
             EVENT_MAXIMIZE,
+            EVENT_CHANGE_SCALE,
             EVENT_EXIT,
             EMULATION_PAUSE,
             EMULATION_STEP,
@@ -47,6 +48,7 @@ typedef struct App_struct
     uint16_t running;
     uint8_t  paused;
     uint8_t  ppuDebug;
+    uint8_t  screenScale;
 
     /* App assets */
     Scene scene;
@@ -60,6 +62,7 @@ void app_toggle_maximize      (App * const);
 void app_capture_mouse_scroll (App * const, double xOffset, double yOffset);
 void app_capture_drop         (App * const, char * paths[]);
 void app_open_dialog          (App * const);
+void app_change_scale         (App * const);
 
 void app_init         (App *);
 void app_free         (App *);

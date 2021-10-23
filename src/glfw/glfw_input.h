@@ -6,8 +6,10 @@
 
 void app_init_inputs (App * app)
 {
+    /* App event inputs */
     app->inputs.EVENT_OPEN_FILE     = GLFW_KEY_O;
     app->inputs.EVENT_MAXIMIZE      = GLFW_KEY_F11;
+    app->inputs.EVENT_CHANGE_SCALE  = GLFW_KEY_MINUS;
     app->inputs.EVENT_EXIT          = GLFW_KEY_ESCAPE;
     app->inputs.EMULATION_PAUSE     = GLFW_KEY_X;
     app->inputs.EMULATION_STEP      = GLFW_KEY_Z;
@@ -27,6 +29,9 @@ void app_init_inputs (App * app)
 
 void app_init(App * app)
 {
+    app->resolution[0] = app->screenScale * 320;
+    app->resolution[1] = app->screenScale * 240;
+
     app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title, NULL);
 #ifdef PPU_DEBUG
     app->debugWindow = glfw_new_window (512, 512, "PPU Viewer", app->window);

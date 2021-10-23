@@ -29,17 +29,17 @@ void app_update (App * app)
     struct appInputs * input = &app->inputs;
 
     /* Standard app functions */
-    if (input_new_key (key, lastKey, input->EVENT_MAXIMIZE))    app_toggle_maximize (app);
-    if (input_new_key (key, lastKey, input->EVENT_OPEN_FILE))   app_open_dialog (app);
+    if (input_new_key (key, lastKey, input->EVENT_MAXIMIZE))     app_toggle_maximize (app);
+    if (input_new_key (key, lastKey, input->EVENT_OPEN_FILE))    app_open_dialog (app);
+    if (input_new_key (key, lastKey, input->EVENT_CHANGE_SCALE)) app_change_scale (app);
     if (input_new_key (key, lastKey, input->EVENT_EXIT) || 
-        glfwWindowShouldClose(app->window) ||
-        glfwWindowShouldClose(app->debugWindow)) app->running = 0;
+        glfwWindowShouldClose(app->window)) app->running = 0;
 
     /* Emulation and debug functions */
     if (input_new_key (key, lastKey, input->EMULATION_PAUSE)) 
     {
         app->paused = !app->paused;
-        printf("Emulator %s\n", app->paused ? "paused" : "running");
+        //printf("Emulator %s\n", app->paused ? "paused" : "running");
     }
     if (input_new_key (key, lastKey, input->EMULATION_DEBUG))  ppu_toggle_debug (&NES.ppu);
     if (input_new_key (key, lastKey, input->EMULATION_RESET))  bus_reset (&NES);
@@ -58,7 +58,7 @@ void app_update (App * app)
 
     /* Update window title */
     char textbuf[256];
-    snprintf(textbuf, sizeof(textbuf), "Frame time: %.3f ms | %s", app->timer.frameTime, NES.rom.filename);
+    snprintf(textbuf, sizeof(textbuf), "NES emulator | Frame time: %.3f ms | %s", app->timer.frameTime, NES.rom.filename);
     update_timer (&app->timer, glfwGetTime());
 
     glfwSetWindowTitle(app->window, textbuf);
@@ -94,7 +94,7 @@ void app_capture_drop (App * app, char * paths[])
         app->paused = 0;
 }
 
-void app_open_dialog(App * const app)
+void app_open_dialog (App * const app)
 {
     char *outPath = NULL;
     nfdresult_t result = NFD_OpenDialog ("nes", "./ne-semu", &outPath);
@@ -104,4 +104,18 @@ void app_open_dialog(App * const app)
         if (rom_load (&NES, outPath)) 
             app->paused = 0;
     }
+}
+
+void app_change_scale (App * const app)
+{
+    if (app->screenScale > 3)
+        app->screenScale = 1;
+    else
+        app->screenScale++;
+
+    app->resolution[0] = app->screenScale * 320;
+    app->resolution[1] = app->screenScale * 240;
+
+    glfwSetWindowSize (app->window, app->resolution[0], app->resolution[1]);
+    glViewport (0, 0, app->resolution[0], app->resolution[1]);
 }
