@@ -57,7 +57,7 @@ const char * ppu_fs_source =
 "    vec2 position = (TexCoords.xy);\n"
 "    float px = 1.0/512.0;\n"
 "    position.x += mod(position.y * 240.0, 2.0) * px;\n"
-"    color *= pow(fract(position.x * 256.0), 0.3);\n"
+"    color *= pow(fract(position.x * 256.0), 0.4);\n"
 "    color *= pow(fract(position.y * 240.0), 0.5);\n"
 "    return color * 1.75;\n"
 "}\n"
@@ -65,10 +65,12 @@ const char * ppu_fs_source =
 "void main()\n"
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
-"    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
+"    vec2 tx      = TexCoords.xy;\n"
+//"    tx.x += sin(tx.y * 960.0) / 1024.0;\n"
+"    vec3 sampled = texture2D(indexed, tx).rgb;\n"
 "    sampled      = pow(sampled, vec3(1/1.4));\n"
-"    sampled      = applyScanline(applyVignette(sampled));\n"
-"    gl_FragColor = vec4(sampled * tint, 1.0);\n"
+//"    sampled      = applyScanline(applyVignette(sampled));\n"
+"    gl_FragColor = vec4(pow(sampled, vec3(1.75)), 1.0);\n"
 "}\n";
 
 uint32_t quadVAO[2] = { 0, 0 };
@@ -136,8 +138,9 @@ void graphics_init (Scene * const scene)
     free (pixels);
 
     /* Create main textures */
-    texture_setup (&scene->fbufferTexture, 256, 240, GL_LINEAR, NULL);
+    texture_setup (&scene->fbufferTexture, 256, 240, GL_NEAREST, NULL);
     texture_setup (&scene->pTableTexture,  256, 256, GL_NEAREST, NULL);
+    texture_setup (&scene->nameTableTexture, 512, 480, GL_NEAREST, NULL);
     texture_setup (&scene->paletteTexture, 64,  1, GL_NEAREST, pixels);
 
     glDisable(GL_CULL_FACE);
@@ -164,8 +167,8 @@ void draw_ppu_debug (GLFWwindow * window, Scene * const scene)
     mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 0, 256, 0);
-    mat4x4_scale_aniso (model, model, width / 2, height / 2, 1.0f);
+    mat4x4_translate_in_place (model, 0, 0, 0);
+    mat4x4_scale_aniso (model, model, width / 2, height, 1.0f);
 
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) projection);
@@ -178,8 +181,8 @@ void draw_ppu_debug (GLFWwindow * window, Scene * const scene)
 	draw_lazy_quad(1.0f, 1.0f, 1);
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 256, 256, 0);
-    mat4x4_scale_aniso (model, model, width / 2, height / 2, 1.0f);
+    mat4x4_translate_in_place (model, 256, 0, 0);
+    mat4x4_scale_aniso (model, model, width / 2, height, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);

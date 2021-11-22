@@ -8,7 +8,7 @@
 #include "gl_gen.h"
 #include "shader.h"
 
-//#define PPU_DEBUG
+#define PPU_DEBUG
 
 typedef struct Scene_struct
 {
@@ -17,6 +17,7 @@ typedef struct Scene_struct
     GLuint 
         fbufferTexture, 
         pTableTexture, 
+        nameTableTexture,
         paletteTexture;
     Shader 
         fbufferShader,
@@ -46,7 +47,7 @@ inline void texture_setup (uint32_t * const textureID, uint16_t width, uint16_t 
 	glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 }
 
-inline void graphics_init (Scene * const);
+/* inline void graphics_init (Scene * const); */
 
 #ifdef CPU_DEBUG
 

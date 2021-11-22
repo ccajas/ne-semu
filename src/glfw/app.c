@@ -70,6 +70,7 @@ void app_draw (App * const app)
     glfwMakeContextCurrent (app->window);
     draw_scene (app->window, &app->scene);
     glfwSwapBuffers(app->window);
+    
 #ifdef PPU_DEBUG    
     glfwMakeContextCurrent (app->debugWindow);
     draw_ppu_debug (app->debugWindow, &app->scene);

@@ -34,7 +34,7 @@ void app_init(App * app)
 
     app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title, NULL);
 #ifdef PPU_DEBUG
-    app->debugWindow = glfw_new_window (512, 512, "PPU Viewer", app->window);
+    app->debugWindow = glfw_new_window (512, 256, "PPU Viewer", app->window);
 #endif
 
     /* Initialize graphics and emulation system */
