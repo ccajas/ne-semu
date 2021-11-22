@@ -5,9 +5,11 @@ void rom_eject (NESrom * const rom)
 {
     vc_free (&rom->PRGdata);
     vc_free (&rom->CHRdata);
+    vc_free (&rom->mapper.localCHR);
 
     memset(&rom->filename[0], 0, sizeof(rom->filename));
     rom->valid = 0;
+    rom->mapper.usesCHR = 0;
 }
 
 uint8_t rom_load (Bus * const bus, const char* pathname)
@@ -31,7 +33,6 @@ uint8_t rom_load (Bus * const bus, const char* pathname)
         memcpy (rom->filename, file,    128);
         rom->mapperID = (rom->header[6] >> 4) | (rom->header[7] & 0xf0);
         printf("Rom valid! (%s)\n", rom->filename);
-        printf("Mapper ID: %d\n", rom->mapperID);
 
         /* After getting the rom info, the correct mapper can be obtained */
         rom->mirroring = rom->header[6] & 1;
@@ -40,9 +41,17 @@ uint8_t rom_load (Bus * const bus, const char* pathname)
         /* Add the PRG and CHR data, pre-allocate 8KB if CHR RAM */
         vc_init (&rom->PRGdata, 1);
         vc_init (&rom->CHRdata, 1);
+        vc_init (&rom->mapper.localCHR, 1);
 
         if (rom->mapper.CHRbanks == 0) {
             for (int i = 0; i < 8192; i++) vc_push (&rom->CHRdata, 0);
+        }
+
+        /* Uses local CHR */
+        if (vc_size(&rom->CHRdata) <= 1)
+        {
+            for (int i = 0; i < 8192; i++) vc_push (&rom->mapper.localCHR, 0);
+            rom->mapper.usesCHR = 1;
         }
 
         printf("Mirroring: %s\n", rom->mirroring == 0 ? "Horizontal" : "Vertical");

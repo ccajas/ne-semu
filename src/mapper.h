@@ -19,10 +19,12 @@ typedef struct Mapper_struct
     uint8_t PRGbanks;
     uint8_t CHRbanks;
     uint8_t bankSelect, lastBankStart;
+    uint8_t usesCHR;
 
     /* Access to ROM data */
     struct VArray *PRG;
     struct VArray *CHR;
+    struct VArray localCHR;
 
     /* Mapper is defined by its read/write implementations */
     uint8_t (*read) (Mapper*, uint16_t const, uint8_t);
