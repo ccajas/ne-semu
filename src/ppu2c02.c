@@ -85,23 +85,23 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 
 	switch (address)
 	{
-		case PPU_CONTROL:
+		case PPU_CONTROL: /* $2000 */
 			ppu->control.flags = data;
 			ppu->tmpVRam.nametableX = ppu->control.NAMETABLE_1;
 			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
 			break;
-		case PPU_MASK:
+		case PPU_MASK:    /* $2001 */
 			ppu->mask.flags = data;
 			break;
-		case OAM_ADDRESS:
+		case OAM_ADDRESS: /* $2003 */
 			ppu->OAMaddress = data;
 			break;
-		case OAM_DATA:
+		case OAM_DATA:    /* $2004 */
 			if (ppu->scanline > 239 && ppu->scanline != 241)
 				ppu->OAMdata[ppu->OAMaddress] = data;
 			ppu->VRam.reg++;
 			break;
-		case PPU_SCROLL:
+		case PPU_SCROLL:  /* $2005 */
 			if (ppu->latch == 0)
 			{
 				/* Write coarse & fine X values */
@@ -117,22 +117,23 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 				ppu->latch = 0;
 			}
 			break;
-		case PPU_ADDRESS:
-			if (ppu->latch == 0)
+		case PPU_ADDRESS: /* $2006 */
+			if (ppu->latch == 0) /* First write, high */
 			{
-				/* Write low or high byte alternating */
 				ppu->tmpVRam.reg &= 0xff;
 				ppu->tmpVRam.reg |= (uint16_t)((data & 0x3f) << 8);
+				ppu->tmpVRam.reg &= 0x3fff;
 				ppu->latch = 1;
 			}
-			else
+			else /* Second write, low */
 			{
-				ppu->tmpVRam.reg = (ppu->tmpVRam.reg & 0xff00) + data;
+				ppu->tmpVRam.reg &= 0xff00;
+				ppu->tmpVRam.reg |= data;
 				ppu->VRam = ppu->tmpVRam;
 				ppu->latch = 0;
 			}
 			break;
-		case PPU_DATA:
+		case PPU_DATA:   /* $2007 */
 			ppu_write (ppu, ppu->VRam.reg, data);
 			ppu->VRam.reg += (ppu->control.VRAM_ADD_INCREMENT) ? 32 : 1;
 			ppu->VRam.reg = ppu->VRam.reg & 0x3fff;
@@ -246,16 +247,17 @@ void ppu_pixel (PPU2C02 * const ppu, uint16_t x, uint16_t y, uint16_t color)
 	ppu->frameBuffer[p * 3+2] = (uint8_t)(color << 5);
 }
 
-void ppu_background (PPU2C02 * const ppu, uint8_t baseTable)
+void ppu_background (PPU2C02 * const ppu)
 {
 	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Get offset value in memory based on tile position */
-	baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
+	uint8_t baseTable = ppu->control.NAMETABLE_2 | ppu->control.NAMETABLE_1;
 
-	uint16_t yPos = (baseTable > 0) ? 240 : 0;
 	for (int i = 0; i < 0x3c0; i++)
 	{
+		uint16_t yPos = (baseTable > 0) ? 240 : 0;
+
 		/* Read nametable data */
 		uint8_t tile = ppu_read(ppu, i + (0x2000 + baseTable * 0x400));
 		uint8_t tileX = i % 32;
@@ -281,8 +283,8 @@ void ppu_background (PPU2C02 * const ppu, uint8_t baseTable)
 				tile_msb >>= 1;
 
 				/* Index 0 is transparent, skip pixel drawing */
-				//ppu_pixel (ppu, tileX * 8 + (7 - col), (tileY + yPos) * 8 + row, 0);
-				//if (index == 0) continue;
+				ppu_pixel (ppu, tileX * 8 + (7 - col), yPos, 0);
+				if (index == 0) continue;
 
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				ppu_pixel (
@@ -335,12 +337,10 @@ void ppu_sprites (PPU2C02 * const ppu)
 		}
 	}
 }
-#define PPU_PIXEL_
+#define PPU_PIXEL
 #ifdef PPU_PIXEL
 void ppu_background_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
-	if (x >= 256) return;
-	if (y >= 240) return;
 	//if (!ppu->mask.RENDER_BG) return;
 
 	uint16_t tileX = x / 8;
@@ -368,10 +368,11 @@ void ppu_background_pixel (PPU2C02 * const ppu, uint16_t const x, uint16_t const
 	uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
 
 	uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
-	//uint16_t p = ((yPos + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY) << 8) + 
-	//	(xPos + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
+	uint16_t pX = (xPos + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
+	uint16_t pY = ((yPos + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
 
-	ppu_pixel (ppu, xPos + col, yPos + row, palColor);
+	ppu_pixel (ppu, pX, pY, palColor);
+	//ppu_pixel (ppu, xPos + col, yPos + row, palColor);
 }
 #endif
 
@@ -427,53 +428,11 @@ void ppu_clock (PPU2C02 * const ppu)
 	const int16_t cycle    = ppu->cycle;
 	const int16_t scanline = ppu->scanline;
 
-	if (scanline >= 0 && scanline < 240)
-	{		
-		if (scanline == 1 && cycle == 0) {
-			if (ppu->frame & 1) ppu->cycle = 1;
-		}
-		
-		if (scanline == 0 && cycle == 1) {
-			ppu->status.VERTICAL_BLANK = 0;
-		}
-
-
-		if (cycle == 257) {
-			ppu_copy_X_scroll(ppu);
-		}
-
-		/* Do more PPU reads (not used) */
-		if (cycle == 337 || cycle == 339) {
-			ppu->nextTile.index = ppu_read(ppu, 0x2000 | (ppu->VRam.reg & 0x0fff));
-		}
-	}
-#ifdef PPU_PIXEL
-	ppu_background_pixel (ppu, cycle, scanline);
-#endif
-	if (scanline == 242 && cycle == 1)
-	{
-		ppu->status.VERTICAL_BLANK = 1;
-		if (ppu->control.ENABLE_NMI) 
-			ppu->nmi = 1;
-
-#ifndef PPU_PIXEL
-		ppu_background (ppu, 0);
-		//if (ppu->VRam.fineY > 0 || ppu->VRam.coarseY > 0)
-		//	ppu_background (ppu, 2);
-#endif
-		ppu_sprites (ppu);
-	}
-	/* Pre-render line */
-	if (ppu->scanline == 261 && cycle >= 280 && cycle < 305)
-	{
-		ppu_copy_Y_scroll(ppu);
-	}
-
 	/* General scan/cycle counting */
 	ppu->clockCount++;
 	ppu->cycle++;
 
-	if (ppu->cycle % 341 == 0)
+	if (ppu->cycle > 341)
 	{
 		ppu->cycle = 0;
 		ppu->scanline++;
@@ -484,6 +443,49 @@ void ppu_clock (PPU2C02 * const ppu)
 			ppu->nmi = 0;
 			ppu->frame++;
 		}
+	}
+
+	if (scanline >= 0 && scanline < 240)
+	{		
+		if (scanline == 1 && cycle == 0) {
+			if (ppu->frame & 1) ppu->cycle = 1;
+		}
+		
+		if (scanline == 0 && cycle == 1) {
+			ppu->status.VERTICAL_BLANK = 0;
+		}
+
+		if (cycle == 257) {
+			ppu_copy_X_scroll(ppu);
+		}
+
+		/* Do more PPU reads (not used) */
+		if (cycle == 337 || cycle == 339) {
+			ppu->nextTile.index = ppu_read(ppu, 0x2000 | (ppu->VRam.reg & 0x0fff));
+		}
+	}
+
+	if (scanline == 242 && cycle == 1)
+	{
+		ppu->status.VERTICAL_BLANK = 1;
+		if (ppu->control.ENABLE_NMI) 
+			ppu->nmi = 1;
+
+#ifndef PPU_PIXEL
+		ppu_background (ppu);
+#endif
+		ppu_sprites (ppu);
+	}
+
+#ifdef PPU_PIXEL
+	if (cycle < 256 && scanline < 240) {
+		ppu_background_pixel (ppu, cycle, scanline);
+	}
+#endif
+	/* Pre-render line */
+	if (ppu->scanline == 261 && cycle >= 280 && cycle < 305)
+	{
+		ppu_copy_Y_scroll(ppu);
 	}
 }
 

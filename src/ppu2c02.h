@@ -56,7 +56,7 @@ typedef struct PPU2C02_Struct
 
     union
     {
-        struct 
+        struct /* DCBAAAAA */
         {
             uint8_t STATUS_UNUSED   : 5;
             uint8_t SPRITE_OVERFLOW : 1;
@@ -69,7 +69,7 @@ typedef struct PPU2C02_Struct
 
     union
 	{
-		struct
+		struct /* xEEEDCBB BBBAAAAA */
 		{
 			uint16_t coarseX : 5;
 			uint16_t coarseY : 5;
