@@ -43,25 +43,26 @@ uint8_t rom_load (Bus * const bus, const char* pathname)
         vc_init (&rom->CHRdata, 1);
         vc_init (&rom->mapper.localCHR, 1);
 
-        if (rom->mapper.CHRbanks == 0) {
-            for (int i = 0; i < 8192; i++) vc_push (&rom->CHRdata, 0);
-        }
-
-        /* Uses local CHR */
-        if (vc_size(&rom->CHRdata) <= 1)
-        {
-            for (int i = 0; i < 8192; i++) vc_push (&rom->mapper.localCHR, 0);
-            rom->mapper.usesCHR = 1;
-        }
-
         printf("Mirroring: %s\n", rom->mirroring == 0 ? "Horizontal" : "Vertical");
         /* Add trainer data if needed */
 
         vc_push_array (&rom->PRGdata, filebuf, rom->mapper.PRGbanks * 16384, sizeof(rom->header));
         vc_push_array (&rom->CHRdata, filebuf, rom->mapper.CHRbanks * 8192,  sizeof(rom->header) + rom->PRGdata.total);
 
+        if (rom->mapper.CHRbanks == 0) {
+            //for (int i = 0; i < 0x4000; i++) vc_push (&rom->CHRdata, 0);
+        }
+
+        /* Uses local CHR */
+        if (vc_size(&rom->CHRdata) == 0)
+        {
+            for (int i = 0; i < 0x4000; i++) vc_push (&rom->mapper.localCHR, 0);
+            rom->mapper.usesCHR = 1;
+        }
+
         rom->mapper.PRG = &rom->PRGdata;
         rom->mapper.CHR = &rom->CHRdata;
+        rom->mapper.lastBankStart = vc_size(&rom->PRGdata) - 0x4000;
 
         bus_reset (bus);
         printf("capacity: %d %d \n", vc_size(&rom->PRGdata), vc_size(&rom->CHRdata));

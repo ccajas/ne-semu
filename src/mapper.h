@@ -5,7 +5,7 @@
 #include "utils/v_array.h"
 #include "mapper_props.h"
 
-#define NUM_MAPPERS 3
+#define NUM_MAPPERS 4
 
 /* Forward declaration and wrappers */
 
@@ -18,7 +18,8 @@ typedef struct Mapper_struct
 
     uint8_t PRGbanks;
     uint8_t CHRbanks;
-    uint8_t bankSelect, lastBankStart;
+    uint8_t bankSelect;
+    uint32_t lastBankStart;
     uint8_t usesCHR;
 
     /* Access to ROM data */
@@ -39,6 +40,7 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID);
 uint8_t mapper_NROM_read  (Mapper * mapper, uint16_t const address, uint8_t rw);
 uint8_t mapper_MMC1_read  (Mapper * mapper, uint16_t const address, uint8_t rw);
 uint8_t mapper_UxROM_read (Mapper * mapper, uint16_t const address, uint8_t rw);
+uint8_t mapper_CNROM_read (Mapper * mapper, uint16_t const address, uint8_t rw);
 
 extern uint8_t (* mapperRead[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t);
 
@@ -47,6 +49,7 @@ extern uint8_t (* mapperRead[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t);
 void mapper_NROM_write  (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
 void mapper_MMC1_write  (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
 void mapper_UxROM_write (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
+void mapper_CNROM_write (Mapper * mapper, uint16_t const address, uint8_t const data, uint8_t rw);
 
 extern void (* mapperWrite[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t, uint8_t);
 
