@@ -114,6 +114,7 @@ typedef struct PPU2C02_Struct
     uint8_t  mirroring;
     uint8_t  debug;
 
+    /* Byte arrays of graphics output */
     uint8_t pTableDebug[2][128 * 128 * 3];
     uint8_t frameBuffer[256 * 256 * 3];
 }
