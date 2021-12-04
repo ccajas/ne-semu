@@ -268,7 +268,7 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	/* Get attribute table info */
 	uint16_t attrTableIndex = ((tileY / 4) * 8) + tileX / 4;
 	uint8_t  attrByte = ppu_read(ppu, 0x23c0 + attrTableIndex);
-	uint8_t  palette  = attrByte >> ((tileY % 4 / 2) << 2 | (tileX % 4 / 2) << 1) & 3;
+	uint8_t  palette  = attrByte >> (((tileY & 3) / 2) << 2 | ((tileX & 3) / 2) << 1) & 3;
 
 	/* Combine bitplanes and color the pixel */
 	uint16_t offset   = (pTable << 12) + (uint16_t)(tile << 4);
@@ -458,6 +458,10 @@ void ppu_clock (PPU2C02 * const ppu)
 
 	if (scanline == 242 && cycle == 1)
 	{
+		/* Debug nametable memory */
+		copy_nametable (ppu, 0);
+		copy_nametable (ppu, 1);
+		
 		ppu->status.VERTICAL_BLANK = 1;
 		if (ppu->control.ENABLE_NMI) 
 			ppu->nmi = 1;
@@ -473,7 +477,6 @@ void ppu_clock (PPU2C02 * const ppu)
 		ppu_background (ppu, cycle, scanline);
 	}
 #endif
-
 	ppu->cycle++;
 
 	if (cycle > 341)
@@ -489,6 +492,32 @@ void ppu_clock (PPU2C02 * const ppu)
 		ppu->frame++;
 
 		if (ppu->frame % 2) ppu->cycle++;
+	}
+}
+
+void copy_nametable (PPU2C02 * const ppu, uint8_t const i)
+{
+	/* Loop through nametable values (bg tiles) */
+	for (uint16_t ntTile = 0; ntTile < 960; ntTile++)
+	{
+		uint16_t xPos = (ntTile % 32) * 8;
+		uint16_t yPos = (ntTile / 32) * 8;
+		uint8_t val =  ppu_read(ppu, 0x2000 + (i * 0x400) + ntTile);
+
+		for (uint16_t row = 0; row < 8; row++)
+		{
+			/* Loop through a single row of the bit planes and combine values */
+			for (uint16_t col = 0; col < 8; col++)
+			{
+				uint16_t pX = xPos + col;
+				uint16_t pY = yPos + row;
+
+				/* Add to nametable, with a shade based on pixel value */
+				ppu->nTableDebug[i][(pY * 256 + pX) * 3]     =
+				ppu->nTableDebug[i][(pY * 256 + pX) * 3 + 1] =
+				ppu->nTableDebug[i][(pY * 256 + pX) * 3 + 2] = val;
+			}
+		}
 	}
 }
 

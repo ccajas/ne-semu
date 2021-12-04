@@ -115,6 +115,7 @@ typedef struct PPU2C02_Struct
     uint8_t  debug;
 
     /* Byte arrays of graphics output */
+    uint8_t nTableDebug[2][256 * 240 * 3];
     uint8_t pTableDebug[2][128 * 128 * 3];
     uint8_t frameBuffer[256 * 256 * 3];
 }
@@ -139,6 +140,7 @@ void    ppu_oam_dma_write  (PPU2C02 * const ppu, uint8_t const data);
 /* Debug and draw functions */
 
 void ppu_set_pixel         (PPU2C02 * const ppu, uint16_t const x, uint16_t const y);
+void copy_nametable        (PPU2C02 * const ppu, uint8_t const i);
 void copy_pattern_table    (PPU2C02 * const ppu, uint8_t const i);
 
 inline uint8_t ppu_show_debug   (PPU2C02 * const ppu) { return ppu->debug; }

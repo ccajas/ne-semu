@@ -93,8 +93,9 @@ inline void draw_debug_ram (int32_t const x, int32_t const y, int8_t rows, int8_
 
 #ifdef PPU_DEBUG
 
-void draw_ppu_debug   (GLFWwindow * const, Scene * const );
-void draw_debug_tiles (int32_t const width, int32_t const height);
+void draw_ntable_debug (GLFWwindow * const, Scene * const);
+void draw_ptable_debug (GLFWwindow * const, Scene * const);
+void draw_debug_tiles  (int32_t const width, int32_t const height);
 
 #endif
 
