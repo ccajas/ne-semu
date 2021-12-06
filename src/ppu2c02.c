@@ -156,22 +156,21 @@ uint8_t ppu_read (PPU2C02 * const ppu, uint16_t address)
 			return ppu->mapper->read (ppu->mapper, address, 1);
 	
 		case 0x2000 ... 0x2fff:
+
+			address &= 0xfff;
 			/* Read from nametable data (mirrored every 4KB) */
-			if (ppu->mirroring == MIRROR_VERTICAL)
-			{
-				if (address >= 0x2400 && address <= 0x27ff)
-					address -= 0x400;
-				if (address >= 0x2800 && address <= 0x2bff)
-					address -= 0x400;
-				if (address >= 0x2c00 && address <= 0x2fff)
-					address -= 0x800;
-			}
 			if (ppu->mirroring == MIRROR_HORIZONTAL)
 			{
-				if (address >= 0x2800 && address <= 0x2fff)
+				if (address >= 0xc00)
 					address -= 0x800;
+				if (address >= 0x800 || address >= 0x400)
+					address -= 0x400;
 			}
-			return ppu->nameTables[address - 0x2000];
+			if (ppu->mirroring == MIRROR_VERTICAL)
+			{
+				address &= 0x7ff;
+			}
+			return ppu->nameTables[address];
 
 		case 0x3000 ... 0x3eff:
 			return ppu_read (ppu, address - 0x1000);
@@ -203,22 +202,20 @@ void ppu_write (PPU2C02 * const ppu, uint16_t address, uint8_t const data)
 	}
 	else if (address >= 0x2000 && address <= 0x3eff)
 	{
+		address &= 0xfff;
 		/* Write to nametable data (mirrored every 4KB) */
-		if (ppu->mirroring == MIRROR_VERTICAL)
-		{
-			if (address >= 0x2400 && address <= 0x27ff)
-				address -= 0x400;
-			if (address >= 0x2800 && address <= 0x2bff)
-				address -= 0x400;
-			if (address >= 0x2c00 && address <= 0x2fff)
-				address -= 0x800;
-		}
 		if (ppu->mirroring == MIRROR_HORIZONTAL)
 		{
-			if (address >= 0x2800 && address <= 0x2fff)
+			if (address >= 0xc00)
 				address -= 0x800;
+			if (address >= 0x800 || address >= 0x400)
+				address -= 0x400;
 		}
-		ppu->nameTables[address - 0x2000] = data;
+		if (ppu->mirroring == MIRROR_VERTICAL)
+		{
+			address &= 0x7ff;
+		}
+		ppu->nameTables[address] = data;
 	}
 	else if (address >= 0x3f00 && address <= 0x3fff)
 	{
@@ -277,9 +274,11 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
 
 	uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
-	uint16_t pX = (tileX * 8 + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
-	uint16_t pY = ((tileY * 8 + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
+	int16_t pX = (tileX * 8 + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
+	int16_t pY = ((tileY * 8 + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
 
+	if (pY < 0)   pY += 240;
+	if (pY > 239) pY -= 240;
 	ppu_pixel (ppu, pX, pY, palColor);
 	//ppu_pixel (ppu, xPos + col, yPos + row, palColor);
 }
@@ -333,7 +332,7 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 }
 #endif
 
-void ppu_sprites (PPU2C02 * const ppu)
+void ppu_sprites (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
 	if (!ppu->mask.RENDER_SPRITES) return;
 
@@ -345,7 +344,9 @@ void ppu_sprites (PPU2C02 * const ppu)
 		uint8_t yPos       = ppu->OAMdata[i];
         uint8_t tile       = ppu->OAMdata[i + 1];
         uint8_t attributes = ppu->OAMdata[i + 2];
-        
+
+		if (yPos > y + 8) continue;
+
 		uint8_t Vflip = (attributes >> 7 & 1) ? 1 : 0;
         uint8_t Hflip = (attributes >> 6 & 1) ? 1 : 0;
 
@@ -369,7 +370,7 @@ void ppu_sprites (PPU2C02 * const ppu)
 
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				uint8_t col1 = (Hflip) ? col : 7 - col;
-				uint8_t row1 = (Vflip) ? 7 - row : row;
+				uint8_t row1 = (Vflip) ? 7 - row + 1 : row + 1;
 				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
 			}
 		}
@@ -469,12 +470,14 @@ void ppu_clock (PPU2C02 * const ppu)
 #ifndef PPU_PIXEL
 		ppu_background (ppu, cycle, scanline);
 #endif
-		ppu_sprites (ppu);
+		//ppu_sprites (ppu);
 	}
 
 #ifdef PPU_PIXEL
 	if (cycle < 256 && scanline < 240) {
 		ppu_background (ppu, cycle, scanline);
+		if (cycle == 255)
+			ppu_sprites (ppu, cycle, scanline);
 	}
 #endif
 	ppu->cycle++;
@@ -502,7 +505,7 @@ void copy_nametable (PPU2C02 * const ppu, uint8_t const i)
 	{
 		uint16_t xPos = (ntTile % 32) * 8;
 		uint16_t yPos = (ntTile / 32) * 8;
-		uint8_t val =  ppu_read(ppu, 0x2000 + (i * 0x400) + ntTile);
+		uint8_t val = ppu->nameTables[(i * 0x400) + ntTile];// ppu_read(ppu, 0x2000 + (i * 0x400) + ntTile);
 
 		for (uint16_t row = 0; row < 8; row++)
 		{
