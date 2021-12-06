@@ -63,14 +63,24 @@ const char * ppu_fs_source =
 "    return color * 1.67;\n"
 "}\n"
 
+"vec3 applyScanline1(vec3 color)\n"
+"{\n"
+"    vec2 position = (TexCoords.xy);\n"
+//"    float px = 1.0/512.0;\n"
+//"    position.x += mod(position.y * 240.0, 2.0) * px;\n"
+//"    color *= pow(fract(position.x * 256.0 - 128), 1.1);\n"
+"    color *= pow(fract(position.y * 240.0 - 120), 0.25);\n"
+"    return color * 1.15;\n"
+"}\n"
+
 "void main()\n"
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec2 tx      = TexCoords.xy;\n"
-"    tx.x += sin(tx.y * 960.0) / 1024.0;\n"
+"    //tx.x += sin(tx.y * 960.0) / 1024.0;\n"
 "    vec3 sampled = texture2D(indexed, tx).rgb;\n"
-"    sampled      = pow(sampled, vec3(1/1.4));\n"
-"    sampled      = applyScanline(applyVignette(sampled));\n"
+"    //sampled      = pow(sampled, vec3(1/1.4));\n"
+"    sampled      = applyScanline1(applyVignette(sampled));\n"
 "    gl_FragColor = vec4(pow(sampled, vec3(1.75)), 1.0);\n"
 "}\n";
 
@@ -139,7 +149,7 @@ void graphics_init (Scene * const scene)
     free (pixels);
 
     /* Create main textures */
-    texture_setup (&scene->fbufferTexture, 256, 240, GL_NEAREST, NULL);
+    texture_setup (&scene->fbufferTexture, 256, 240, GL_LINEAR, NULL);
     texture_setup (&scene->pTableTexture,  256, 256, GL_NEAREST, NULL);
     texture_setup (&scene->nameTableTexture, 512, 480, GL_NEAREST, NULL);
     texture_setup (&scene->paletteTexture, 64,  1, GL_NEAREST, pixels);
