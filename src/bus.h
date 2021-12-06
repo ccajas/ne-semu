@@ -86,12 +86,12 @@ inline uint8_t bus_read (Bus * const bus, uint16_t const address)
     if (address >= 0 && address < 0x2000)
     {
         data = bus->ram[address & 0x07ff];
-        //printf("Read from system RAM: %04x\n", addr);
+        /* printf("Read from system RAM: %04x\n", addr); */
     }
 	/* Read from PPU, mirrored every 8 bytes */
     else if (address >= 0x2000 && address < 0x4000)
 	{
-        //printf("Attempting to read from PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data);
+        /* printf("Attempting to read from PPU at register %x, pc:%04x data:%02x\n", address & 0x7, bus->cpu.lastpc, data); */
 		data = ppu_register_read (&bus->ppu, address & 0x7);
 	}
     /* Read from APU and I/O */

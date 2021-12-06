@@ -18,24 +18,6 @@ void (*mapperWrite[NUM_MAPPERS])(Mapper*, uint16_t, uint8_t, uint8_t) =
     mapper_CNROM_write
 };
 
-struct BaseFigure
-{
-    int type;
-    const char * name;
-};
-
-struct RectangleFigure
-{
-    struct BaseFigure base; // must be first field!
-    int width, height;
-};
-
-struct CircleFigure
-{
-    struct BaseFigure base; // must be first field!
-    float radius;
-};
-
 Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
 {
     Mapper mapper;
@@ -64,7 +46,7 @@ Mapper mapper_apply (uint8_t header[], uint16_t const mapperID)
     }
     else 
     {
-        /* No appropriate mapper could be found, default to 0 (NROM), may have unintended effects */
+        /* No appropriate mapper could be found, default to 0 (NROM), will likely have unintended effects */
         mapper.read  = mapper_NROM_read;
         mapper.write = mapper_NROM_write;
     }

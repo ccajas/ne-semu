@@ -256,10 +256,21 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	uint16_t row = x % 8;
 	uint16_t col = y % 8;
 
+	int16_t pX = (tileX * 8 + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
+	int16_t pY = ((tileY * 8 + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
+
+
 	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
 
 	/* Get offset value in memory based on tile position */
 	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
+	if (pX < 0 || pX > 255) baseTable = !baseTable;
+	if (pY > 0 || pY > 239) baseTable = !baseTable;
+
+	if (pX < 0)   pX += 256;
+	if (pX > 255) pX -= 256; 
+	if (pY < 0)   pY += 240;
+	if (pY > 239) pY -= 240;
 	uint8_t tile = ppu_read(ppu, (tileY * 32 + tileX) + (0x2000 + baseTable * 0x400));
 
 	/* Get attribute table info */
@@ -274,11 +285,7 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	uint8_t  index    = (tile_msb & 1) + ((tile_lsb & 1) << 1);
 
 	uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
-	int16_t pX = (tileX * 8 + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
-	int16_t pY = ((tileY * 8 + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
 
-	if (pY < 0)   pY += 240;
-	if (pY > 239) pY -= 240;
 	ppu_pixel (ppu, pX, pY, palColor);
 	//ppu_pixel (ppu, xPos + col, yPos + row, palColor);
 }
