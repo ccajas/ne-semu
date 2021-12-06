@@ -1,7 +1,7 @@
-#include "../gl/graphics.h"
+#include "gl/graphics.h"
 #include "timer.h"
-#include "callbacks.h"
-#include "inputstates.h"
+#include "glfw/callbacks.h"
+#include "glfw/inputstates.h"
 
 typedef void (*appEventPtr)();
 

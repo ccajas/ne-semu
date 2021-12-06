@@ -1,7 +1,7 @@
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#include "../glfw/timer.h"
+#include "../timer.h"
 #include "../bus.h"
 #include "../palette.h"
 #include "../utils/linmath.h"

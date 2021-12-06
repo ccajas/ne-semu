@@ -66,7 +66,7 @@ void app_run()
 
 #else
 #include <time.h>
-#include "glfw/app.h"
+#include "app.h"
 #endif
 
 int main (int argc, char** argv)

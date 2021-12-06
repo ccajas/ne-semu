@@ -1,8 +1,8 @@
 #include "app.h"
-#include "callbacks.h"
-#include "inputstates.h"
-#include "glfw_input.h"
-#include "../../nfd/src/nfd.h"
+#include "glfw/callbacks.h"
+#include "glfw/inputstates.h"
+#include "glfw/glfw_input.h"
+#include "../nfd/src/nfd.h"
 
 uint8_t app_controller_state (KeyboardState * const key, struct appInputs * const input)
 {
