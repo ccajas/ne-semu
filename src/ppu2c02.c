@@ -264,9 +264,7 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 
 	/* Get offset value in memory based on tile position */
 	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
-	if (pX < 0 || pX > 255) baseTable = !baseTable;
-	if (pY > 0 || pY > 239) baseTable = !baseTable;
-
+	
 	if (pX < 0)   pX += 256;
 	if (pX > 255) pX -= 256; 
 	if (pY < 0)   pY += 240;
