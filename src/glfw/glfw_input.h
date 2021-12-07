@@ -34,7 +34,7 @@ void app_init(App * app)
 
     app->window = glfw_new_window (app->resolution[0], app->resolution[1], app->title, NULL);
 #ifdef PPU_DEBUG
-    app->debugWindow = glfw_new_window (512, 240, "PPU Viewer", app->window);
+    //app->debugWindow = glfw_new_window (512, 240, "PPU Viewer", app->window);
 #endif
 
     /* Initialize graphics and emulation system */
@@ -42,10 +42,10 @@ void app_init(App * app)
     app_init_inputs (app);
     bus_reset (&NES);
 
-    glfwSetWindowUserPointer       (app->window,      app);
+    glfwSetWindowUserPointer       (app->window, app);
 #ifdef PPU_DEBUG
-    glfwSetWindowUserPointer       (app->debugWindow, app);
-    glfwSetWindowSizeCallback      (app->window, app->onWindowResize);
+    //glfwSetWindowUserPointer       (app->debugWindow, app);
+    //glfwSetWindowSizeCallback      (app->window, app->onWindowResize);
 #endif
 
     /* Setup callbacks for main window */

@@ -80,7 +80,7 @@ int main (int argc, char** argv)
         .onWindowResize = glfw_cb_window_size,
         .screenScale    = 3
     };
-    app.scene = (Scene){ .bgColor = { 113, 115, 126 } };
+    app.scene = (Scene){ .bgColor = { 113, 115, 186 } };
     app_init (&app);
 
     /* Time elapsed and tracking */

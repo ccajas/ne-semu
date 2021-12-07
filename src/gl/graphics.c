@@ -11,7 +11,7 @@ const char * default_fs_source =
 "void main()\n"
 "{\n"
 "    vec3 sampled = texture2D(indexed, TexCoords).rgb;\n"
-"    gl_FragColor = vec4(sampled, 1.0);\n"
+"    gl_FragColor = vec4(sampled, 0.7);\n"
 "}\n";
 
 const char * ppu_vs_source =
@@ -77,9 +77,9 @@ const char * ppu_fs_source =
 "{\n"
 "    vec3 tint    = vec3(113, 115, 126) / 127.0;\n"
 "    vec2 tx      = TexCoords.xy;\n"
-"    //tx.x += sin(tx.y * 960.0) / 1024.0;\n"
+//"    tx.x += sin(tx.y * 960.0) / 1024.0;\n"
 "    vec3 sampled = texture2D(indexed, tx).rgb;\n"
-"    //sampled      = pow(sampled, vec3(1/1.4));\n"
+//"    sampled      = pow(sampled, vec3(1/1.4));\n"
 "    sampled      = applyScanline1(applyVignette(sampled));\n"
 "    gl_FragColor = vec4(pow(sampled, vec3(1.75)), 1.0);\n"
 "}\n";
@@ -164,8 +164,8 @@ void graphics_init (Scene * const scene)
 
 void draw_ntable_debug (GLFWwindow * window, Scene * const scene)
 {
-	glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 215, (GLfloat)scene->bgColor[2] / 184, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glClearColor((GLfloat)scene->bgColor[0] / 255, (GLfloat)scene->bgColor[1] / 215, (GLfloat)scene->bgColor[2] / 184, 1.0);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int32_t width, height;
     glfwGetFramebufferSize (window, &width, &height);
@@ -177,8 +177,8 @@ void draw_ntable_debug (GLFWwindow * window, Scene * const scene)
 
     mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 0, 0, 0);
-    mat4x4_scale_aniso (model, model, width / 2, height, 1.0f);
+    mat4x4_translate_in_place (model, 8, height - 128, 0);
+    mat4x4_scale_aniso (model, model, 128, 120, 1.0f);
 
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "projection"), 1, GL_FALSE, (const GLfloat*) projection);
@@ -191,8 +191,8 @@ void draw_ntable_debug (GLFWwindow * window, Scene * const scene)
 	draw_lazy_quad(1.0f, 1.0f, 1);
 
     mat4x4_identity (model);
-    mat4x4_translate_in_place (model, 256, 0, 0);
-    mat4x4_scale_aniso (model, model, width / 2, height, 1.0f);
+    mat4x4_translate_in_place (model, 136, height - 128, 0);
+    mat4x4_scale_aniso (model, model, 128, 120, 1.0f);
     glUniformMatrix4fv (glGetUniformLocation(scene->debugShader.program, "model"), 1, GL_FALSE, (const GLfloat*) model);
 
     glBindTexture (GL_TEXTURE_2D, scene->pTableTexture);
@@ -230,6 +230,7 @@ void draw_ptable_debug (GLFWwindow * window, Scene * const scene)
     glTexImage2D  (GL_TEXTURE_2D, 0, GL_RGBA, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, NES.ppu.pTableDebug[0]);
 	draw_lazy_quad(1.0f, 1.0f, 1);
 
+    mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
     mat4x4_identity (model);
     mat4x4_translate_in_place (model, 256, 0, 0);
     mat4x4_scale_aniso (model, model, width / 2, height, 1.0f);
@@ -275,8 +276,8 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
     mat4x4 model;
     mat4x4 projection;
 
-    mat4x4_identity (model);
     mat4x4_ortho (projection, 0, width, 0, height, 0, 0.1f);
+    mat4x4_identity (model);
     mat4x4_scale_aniso (model, model, width, height, 1.0f);
 
     glUniformMatrix4fv (glGetUniformLocation(scene->fbufferShader.program, "model"),      1, GL_FALSE, (const GLfloat*) model);
@@ -290,6 +291,10 @@ void draw_scene (GLFWwindow * window, Scene * const scene)
 	draw_lazy_quad(1.0f, 1.0f, 0);
 
     glBindTexture(GL_TEXTURE_2D, 0);
+
+#ifdef PPU_DEBUG  
+    draw_ntable_debug (window, scene);
+#endif
 }
 
 void draw_debug (GLFWwindow * window, Timer * const timer)

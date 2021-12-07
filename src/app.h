@@ -35,7 +35,7 @@ typedef struct App_struct
 
     /* Handles */
     GLFWwindow * window;
-    GLFWwindow * debugWindow;
+    //GLFWwindow * debugWindow;
     char       * dropPath; 
     const char * title;
 

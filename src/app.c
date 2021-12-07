@@ -70,13 +70,13 @@ void app_draw (App * const app)
     glfwMakeContextCurrent (app->window);
     draw_scene (app->window, &app->scene);
     glfwSwapBuffers(app->window);
-    
+/* 
 #ifdef PPU_DEBUG    
     glfwMakeContextCurrent (app->debugWindow);
-    //draw_ptable_debug (app->debugWindow, &app->scene);
     draw_ntable_debug (app->debugWindow, &app->scene);
     glfwSwapBuffers(app->debugWindow);
 #endif
+*/
 }
 
 /* Callback wrappers */
@@ -110,10 +110,12 @@ void app_open_dialog (App * const app)
 
 void app_change_scale (App * const app)
 {
-    if (app->screenScale > 3)
+    if (app->screenScale >= 4)
         app->screenScale = 1;
     else
         app->screenScale++;
+
+    printf("Changed scale to %d \n", app->screenScale);
 
     app->resolution[0] = app->screenScale * 320;
     app->resolution[1] = app->screenScale * 240;
