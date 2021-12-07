@@ -14,6 +14,7 @@ void app_init_inputs (App * app)
     app->inputs.EMULATION_PAUSE     = GLFW_KEY_X;
     app->inputs.EMULATION_STEP      = GLFW_KEY_Z;
     app->inputs.EMULATION_SCANLINE  = GLFW_KEY_C;
+    app->inputs.EMULATION_DEBUG     = GLFW_KEY_Q;
     app->inputs.EMULATION_RESET     = GLFW_KEY_R;
 
     /* controller buttons */

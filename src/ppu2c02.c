@@ -258,9 +258,7 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 
 	int16_t pX = (tileX * 8 + col - (ppu->tmpVRam.coarseX * 8) - ppu->fineX);
 	int16_t pY = ((tileY * 8 + row - (ppu->tmpVRam.coarseY * 8) - ppu->tmpVRam.fineY));
-
-
-	uint16_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR) ? 1 : 0;
+	uint8_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR);
 
 	/* Get offset value in memory based on tile position */
 	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
@@ -269,12 +267,12 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	if (pX > 255) pX -= 256; 
 	if (pY < 0)   pY += 240;
 	if (pY > 239) pY -= 240;
-	uint8_t tile = ppu_read(ppu, (tileY * 32 + tileX) + (0x2000 + baseTable * 0x400));
+	uint8_t tile = ppu_read(ppu, ((tileY << 5) + tileX) + (0x2000 + baseTable * 0x400));
 
 	/* Get attribute table info */
-	uint16_t attrTableIndex = ((tileY / 4) * 8) + tileX / 4;
+	uint16_t attrTableIndex = ((tileY >> 2) << 3) + (tileX >> 2);
 	uint8_t  attrByte = ppu_read(ppu, 0x23c0 + attrTableIndex);
-	uint8_t  palette  = attrByte >> (((tileY & 3) / 2) << 2 | ((tileX & 3) / 2) << 1) & 3;
+	uint8_t  palette  = attrByte >> (((tileY & 3) >> 1) << 2 | ((tileX & 3) >> 1) << 1) & 3;
 
 	/* Combine bitplanes and color the pixel */
 	uint16_t offset   = (pTable << 12) + (uint16_t)(tile << 4);
@@ -341,21 +339,21 @@ void ppu_sprites (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 {
 	if (!ppu->mask.RENDER_SPRITES) return;
 
-    uint8_t pTable  = (ppu->control.SPRITE_PATTERN_ADDR) ? 1 : 0;
+	uint8_t pTable  = (ppu->control.SPRITE_PATTERN_ADDR) ? 1 : 0;
 
 	for (int i = 0; i < sizeof (ppu->OAMdata); i += 4) 
 	{
 		uint8_t xPos       = ppu->OAMdata[i + 3];
 		uint8_t yPos       = ppu->OAMdata[i];
-        uint8_t tile       = ppu->OAMdata[i + 1];
-        uint8_t attributes = ppu->OAMdata[i + 2];
+		uint8_t tile       = ppu->OAMdata[i + 1];
+		uint8_t attributes = ppu->OAMdata[i + 2];
 
 		if (yPos > y + 8) continue;
 
-		uint8_t Vflip = (attributes >> 7 & 1) ? 1 : 0;
-        uint8_t Hflip = (attributes >> 6 & 1) ? 1 : 0;
+		uint8_t Vflip = (attributes >> 7 & 1);
+		uint8_t Hflip = (attributes >> 6 & 1);
 
-        uint8_t palette = (attributes & 3) | 4;
+		uint8_t palette = (attributes & 3) | 4;
 		uint16_t offset = (pTable << 12) + (uint16_t)(tile << 4);
 
 		for (int row = 0; row < 8; row++)
@@ -376,6 +374,7 @@ void ppu_sprites (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 				uint16_t palColor = palette2C03[ppu_read(ppu, 0x3f00 + (palette << 2) + index) & 0x3f];
 				uint8_t col1 = (Hflip) ? col : 7 - col;
 				uint8_t row1 = (Vflip) ? 7 - row + 1 : row + 1;
+
 				ppu_pixel (ppu, xPos + col1, yPos + row1, palColor);
 			}
 		}
@@ -479,7 +478,8 @@ void ppu_clock (PPU2C02 * const ppu)
 	}
 
 #ifdef PPU_PIXEL
-	if (cycle < 256 && scanline < 240) {
+	if (cycle < 256 && scanline < 240) 
+	{
 		ppu_background (ppu, cycle, scanline);
 		if (cycle == 255)
 			ppu_sprites (ppu, cycle, scanline);
