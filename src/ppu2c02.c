@@ -261,13 +261,13 @@ void ppu_background (PPU2C02 * const ppu, uint16_t const x, uint16_t const y)
 	uint8_t pTable = (ppu->control.BACKGROUND_PATTERN_ADDR);
 
 	/* Get offset value in memory based on tile position */
-	uint8_t baseTable = ppu->control.NAMETABLE_1 | ppu->control.NAMETABLE_2;
+	uint16_t baseTable = (ppu->control.flags & 0x3) * 0x400 + 0x2000;
 	
 	if (pX < 0)   pX += 256;
 	if (pX > 255) pX -= 256; 
 	if (pY < 0)   pY += 240;
 	if (pY > 239) pY -= 240;
-	uint8_t tile = ppu_read(ppu, ((tileY << 5) + tileX) + (0x2000 + baseTable * 0x400));
+	uint8_t tile = ppu_read(ppu, ((tileY << 5) + tileX) + baseTable);
 
 	/* Get attribute table info */
 	uint16_t attrTableIndex = ((tileY >> 2) << 3) + (tileX >> 2);
