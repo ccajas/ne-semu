@@ -11,7 +11,7 @@ Fails most PPU tests, as PPU is still not cycle-accurate and updates pixels per 
 
 Mappers 0 and 1 working
 
-## Dpendencies
+## Dependencies
 
 GLFW for graphics and input, Native File Dialog for opening files via GUI
 
