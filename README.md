@@ -5,7 +5,7 @@ Simple implementation of NES emulation.
 
 ## Status
 
-Passes Kevtris' NESTEST rom and Blargg's instruction test (legal and illegal opcodes)
+Passes Kevtris' NESTEST rom and Blargg's CPU instruction test (legal and illegal opcodes)
 
 Fails most PPU tests, as PPU is still not cycle-accurate and updates pixels per frame only
 
