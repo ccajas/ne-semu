@@ -32,7 +32,6 @@ uint8_t rom_load (Bus * const bus, const char* pathname)
         memcpy (rom->header,   filebuf, sizeof(rom->header));
         memcpy (rom->filename, file,    128);
         rom->mapperID = (rom->header[6] >> 4) | (rom->header[7] & 0xf0);
-        printf("Rom valid! (%s)\n", rom->filename);
 
         /* After getting the rom info, the correct mapper can be obtained */
         rom->mirroring = rom->header[6] & 1;
@@ -67,6 +66,7 @@ uint8_t rom_load (Bus * const bus, const char* pathname)
         rom->mapper.lastBankStart = vc_size(&rom->PRGdata) - 0x4000;
 
         bus_reset (bus);
+        printf("Rom loaded! (%s)\n", rom->filename);
         printf("capacity: %d %d \n", vc_size(&rom->PRGdata), vc_size(&rom->CHRdata));
 
         /* Test disassembly output */

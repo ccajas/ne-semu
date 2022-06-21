@@ -87,15 +87,16 @@ void ppu_register_write (PPU2C02 * const ppu, uint16_t const address, uint8_t co
 	{
 		case PPU_CONTROL: /* $2000 */
 			ppu->control.flags = data;
-			ppu->tmpVRam.nametableX = ppu->control.NAMETABLE_1;
-			ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
+			//ppu->tmpVRam.nametableX = ppu->control.NAMETABLE_1;
+			//ppu->tmpVRam.nametableY = ppu->control.NAMETABLE_2;
+			ppu->tmpVRam.reg |= (data & 3) << 10;
 			break;
 		case PPU_MASK:    /* $2001 */
 			ppu->mask.flags = data;
 			break;
 		case OAM_ADDRESS: /* $2003 */
 			ppu->OAMaddress = data;
-			break;
+			break;		
 		case OAM_DATA:    /* $2004 */
 			if (ppu->scanline > 239 && ppu->scanline != 241)
 				ppu->OAMdata[ppu->OAMaddress] = data;
@@ -434,7 +435,7 @@ void ppu_clock (PPU2C02 * const ppu)
 	const int16_t scanline = ppu->scanline;
 
 	int8_t pre_render = (scanline == 0);
-	int8_t render = (scanline >= 1 && scanline <= 240);
+	int8_t render = (scanline >= 0 && scanline <= 240);
 
 	/* General scan/cycle counting */
 	ppu->clockCount++;

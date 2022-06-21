@@ -67,6 +67,8 @@ uint8_t mapper_NROM_read (Mapper * const mapper, uint16_t const address, uint8_t
     if (address >= 0x8000)
     {
         uint32_t mapped_addr = address & (mapper->PRGbanks > 1 ? 0x7fff : 0x3fff);
+        /* if (mapped_addr > 0x3fff) */
+        /* printf("NROM read: $%04x (%d size)\n", mapped_addr, mapper->PRG->total); */
         return mapper->PRG->data[mapped_addr];
     }
     return 0;
